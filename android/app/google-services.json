@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "453171651477",
+    "project_id": "sshchatfitur",
+    "storage_bucket": "sshchatfitur.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:453171651477:android:8c85e873d51e34e58ccc9c",
+        "android_client_info": {
+          "package_name": "com.example.ssh_aplication"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyABtCGvN1HZT8Rb2e-Jj7jFFJDLsvohVGo"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

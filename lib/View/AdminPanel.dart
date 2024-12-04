@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:jwt_decoder/jwt_decoder.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:ssh_web/View/HomePage.dart';
+import 'package:ssh_web/View/InformasiHakHukum.dart';
 import 'package:ssh_web/View/LoginPage.dart';
 import 'package:ssh_web/View/PengaduanPage.dart';
 import 'package:ssh_web/View/SettingPage.dart';
@@ -146,6 +147,13 @@ class _AdminPanelState extends State<AdminPanel> {
                   },
                 ),
                 ListTile(
+                  title: const Text('Informasi Hak & Hukum',
+                      style: TextStyle(color: Colors.white)),
+                  onTap: () {
+                    _onItemTapped(2);
+                  },
+                ),
+                ListTile(
                   title: const Text('Settings',
                       style: TextStyle(color: Colors.white)),
                   onTap: () {
@@ -180,8 +188,10 @@ class _AdminPanelState extends State<AdminPanel> {
         return HomePage(); // Halaman Dashboard
       case 1:
         return PengaduanPage(); // Halaman Pengaduan
+      case 3:
+        return SettingPage();
       case 2:
-        return SettingPage(); // Halaman Settings
+        return InformasiHakHukum(); // Halaman Settings
       default:
         return HomePage();
     }

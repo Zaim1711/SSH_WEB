@@ -25,17 +25,15 @@ class _AdminPanelState extends State<AdminPanel> {
     decodeToken();
   }
 
-  // Fungsi untuk mengganti halaman saat menu dipilih
   void _onItemTapped(int index) {
     setState(() {
       _selectedIndex = index;
     });
   }
 
-  // Fungsi untuk menghapus token dan data lainnya
   Future<void> _logout() async {
     SharedPreferences prefs = await SharedPreferences.getInstance();
-    await prefs.remove('accesToken'); // Hapus token akses
+    await prefs.remove('accesToken');
   }
 
   Future<void> decodeToken() async {
@@ -44,41 +42,31 @@ class _AdminPanelState extends State<AdminPanel> {
 
     if (accessToken != null) {
       try {
-        // Decode token JWT
         payload = JwtDecoder.decode(accessToken);
-
         String name = payload['sub'].split(',')[2];
         String id = payload['sub'].split(',')[0];
+        var roles = payload['roles'];
 
-        // Ambil peran (roles) dari payload
-        var roles = payload['roles']; // Ambil roles
-
-        // Jika roles berupa string dalam format "[ROLE_USER]", hapus tanda kurung
         if (roles is String) {
           roles = roles.replaceAll('[', '').replaceAll(']', '').split(',');
         }
 
-        // Periksa apakah peran adalah 'ROLE_ADMIN'
         if (roles.contains('ROLE_ADMIN')) {
-          // Peran adalah ROLE_ADMIN, lanjutkan ke halaman admin
           setState(() {
             userName = name;
             userId = id;
           });
         } else {
-          // Jika peran bukan 'ROLE_ADMIN', tampilkan pesan akses ditolak dan logout
           _showAccessDeniedMessage(context);
-          // Tunggu beberapa detik, kemudian logout
           Future.delayed(const Duration(seconds: 2), () {
             _navigateToLogOut(context);
           });
         }
       } catch (e) {
         print('Error decoding token: $e');
-        _navigateToLogOut(context); // Jika terjadi error pada token, logout
+        _navigateToLogOut(context);
       }
     } else {
-      // Jika token tidak ada, arahkan ke halaman login
       _navigateToLogOut(context);
     }
   }
@@ -111,7 +99,6 @@ class _AdminPanelState extends State<AdminPanel> {
       ),
       body: Row(
         children: [
-          // Sidebar tetap terlihat di sebelah kiri
           Container(
             width: 250,
             color: Color(0xFF0D187E),
@@ -157,22 +144,21 @@ class _AdminPanelState extends State<AdminPanel> {
                   title: const Text('Settings',
                       style: TextStyle(color: Colors.white)),
                   onTap: () {
-                    _onItemTapped(2);
+                    _onItemTapped(3);
                   },
                 ),
                 Padding(
                   padding: const EdgeInsets.all(16.0),
                   child: MyButtonLogout(
                     onTap: () async {
-                      await _logout(); // Panggil fungsi logout
-                      _navigateToLogOut(context); // Navigasi ke halaman login
+                      await _logout();
+                      _navigateToLogOut(context);
                     },
                   ),
                 ),
               ],
             ),
           ),
-          // Bagian Konten yang berubah sesuai pilihan
           Expanded(
             child: _getSelectedWidget(),
           ),
@@ -181,23 +167,21 @@ class _AdminPanelState extends State<AdminPanel> {
     );
   }
 
-  // Fungsi untuk menampilkan halaman sesuai menu yang dipilih
   Widget _getSelectedWidget() {
     switch (_selectedIndex) {
       case 0:
-        return HomePage(); // Halaman Dashboard
+        return Homepage(onMenuSelected: _onItemTapped); // Pass callback
       case 1:
         return PengaduanPage(); // Halaman Pengaduan
-      case 3:
-        return SettingPage();
       case 2:
-        return InformasiHakHukum(); // Halaman Settings
+        return InformasiHakHukum(); // Halaman Informasi Hak & Hukum
+      case 3:
+        return SettingPage(); // Halaman Settings
       default:
-        return HomePage();
+        return Homepage(onMenuSelected: _onItemTapped);
     }
   }
 
-  // Fungsi navigasi ke halaman logout
   void _navigateToLogOut(BuildContext context) {
     Navigator.pushAndRemoveUntil(
       context,
@@ -208,7 +192,7 @@ class _AdminPanelState extends State<AdminPanel> {
           child: LoginPage(),
         ),
       ),
-      (Route<dynamic> route) => false, // Hapus semua route sebelumnya
+      (Route<dynamic> route) => false,
     );
   }
 }

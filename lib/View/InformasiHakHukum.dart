@@ -115,20 +115,87 @@ class _InformasiHakHukumState extends State<InformasiHakHukum> {
     }
   }
 
-  void _showDetail(int id) {
-    // Tampilkan detail item (misalnya dengan dialog)
+  Future<void> _editItem(int id, String judul, String deskripsi) async {
+    SharedPreferences prefs = await SharedPreferences.getInstance();
+    String? accessToken = prefs.getString('accesToken');
+
+    // Membuat header dengan token akses
+    Map<String, String> headers = {
+      'Authorization': 'Bearer $accessToken', // Menggunakan Bearer token
+      'Content-Type': 'application/json', // Menentukan tipe konten
+    };
+
+    final response = await http.put(
+      Uri.parse('http://localhost:8080/informasiHakHukum/$id'),
+      headers: headers,
+      body: json.encode({
+        'judul': judul,
+        'deskripsi': deskripsi,
+      }),
+    );
+
+    if (response.statusCode == 200) {
+      // Jika berhasil, ambil data lagi
+      await _fetchData(); // Pastikan untuk menunggu fetch data
+    } else {
+      throw Exception('Failed to edit item');
+    }
+  }
+
+  void _showEditDialog(int id, String currentJudul, String currentDeskripsi) {
+    String judul = currentJudul;
+    String deskripsi = currentDeskripsi;
+
+    // Menggunakan TextEditingController untuk mengisi nilai awal
+    TextEditingController judulController =
+        TextEditingController(text: currentJudul);
+    TextEditingController deskripsiController =
+        TextEditingController(text: currentDeskripsi);
+
     showDialog(
       context: context,
       builder: (context) {
         return AlertDialog(
-          title: Text('Detail Item ID: $id'),
-          content: Text('Tampilkan detail untuk item dengan ID: $id'),
+          title: const Text('Edit Informasi Hak Hukum'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextField(
+                controller: judulController,
+                onChanged: (value) {
+                  judul = value;
+                },
+                decoration: const InputDecoration(labelText: 'Judul'),
+              ),
+              TextField(
+                controller: deskripsiController,
+                onChanged: (value) {
+                  deskripsi = value;
+                },
+                decoration: const InputDecoration(labelText: 'Deskripsi'),
+              ),
+            ],
+          ),
           actions: [
             TextButton(
               onPressed: () {
                 Navigator.of(context).pop();
               },
-              child: const Text('Tutup'),
+              child: const Text('Batal'),
+            ),
+            TextButton(
+              onPressed: () async {
+                try {
+                  await _editItem(id, judul, deskripsi);
+                  Navigator.of(context).pop();
+                } catch (e) {
+                  // Tampilkan pesan kesalahan jika ada
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text('Gagal mengedit item: $e')),
+                  );
+                }
+              },
+              child: const Text('Simpan'),
             ),
           ],
         );
@@ -182,20 +249,55 @@ class _InformasiHakHukumState extends State<InformasiHakHukum> {
     );
   }
 
+  void _showDetail(int id) {
+    // Tampilkan detail item (misalnya dengan dialog)
+    showDialog(
+      context: context,
+      builder: (context) {
+        // Anda bisa menambahkan logika untuk mengambil detail item berdasarkan ID
+        // Misalnya, Anda bisa menampilkan detail dari _data yang sudah diambil
+        final item = _data.firstWhere((element) => element['id'] == id);
+        return AlertDialog(
+          title: Text('Detail Item ID: $id'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text('Judul: ${item['judul']}'),
+              Text('Deskripsi: ${item['deskripsi']}'),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () {
+                Navigator.of(context).pop();
+              },
+              child: const Text('Tutup'),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        backgroundColor:
-            Color(0xFF0D187E), // Ubah warna AppBar agar lebih menarik
-        title: const Text('Informasi Hak dan Hukum',
-            style: TextStyle(
-                fontSize: 24,
-                fontWeight: FontWeight.bold,
-                color: Colors.white)),
+        backgroundColor: Color(0xFF0D187E),
+        title: const Text(
+          'Informasi Hak dan Hukum',
+          style: TextStyle(
+            fontSize: 24,
+            fontWeight: FontWeight.bold,
+            color: Colors.white,
+          ),
+        ),
         actions: [
           IconButton(
-            icon: const Icon(Icons.add),
+            icon: const Icon(
+              Icons.add,
+              color: Colors.white,
+            ),
             onPressed: _showCreateDialog,
           ),
         ],
@@ -204,35 +306,61 @@ class _InformasiHakHukumState extends State<InformasiHakHukum> {
           ? const Center(child: CircularProgressIndicator())
           : _data.isEmpty
               ? const Center(child: Text('Tidak ada data.'))
-              : ListView.builder(
-                  itemCount: _data.length,
-                  itemBuilder: (context, index) {
-                    final item = _data[index];
-                    return Card(
-                      margin: const EdgeInsets.all(8.0),
-                      child: ListTile(
-                        title: Text(item['judul']),
-                        subtitle: Text(item['deskripsi']),
-                        trailing: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            IconButton(
-                              icon: const Icon(Icons.delete),
-                              onPressed: () async {
-                                await _deleteItem(item['id']);
-                              },
-                            ),
-                            IconButton(
-                              icon: const Icon(Icons.info),
-                              onPressed: () {
-                                _showDetail(item['id']);
-                              },
-                            ),
+              : SingleChildScrollView(
+                  child: Padding(
+                    padding: const EdgeInsets.all(16.0),
+                    child: Card(
+                      elevation: 8,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(16),
+                      ),
+                      child: Padding(
+                        padding: const EdgeInsets.all(8.0),
+                        child: DataTable(
+                          columns: const [
+                            DataColumn(label: Text('Judul')),
+                            DataColumn(label: Text('Deskripsi')),
+                            DataColumn(label: Text('Aksi')),
                           ],
+                          rows: _data.map((item) {
+                            return DataRow(cells: [
+                              DataCell(Text(item['judul'])),
+                              DataCell(Text(item['deskripsi'])),
+                              DataCell(
+                                Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    IconButton(
+                                      icon: const Icon(Icons.edit),
+                                      onPressed: () {
+                                        _showEditDialog(
+                                          item['id'],
+                                          item['judul'],
+                                          item['deskripsi'],
+                                        );
+                                      },
+                                    ),
+                                    IconButton(
+                                      icon: const Icon(Icons.delete),
+                                      onPressed: () async {
+                                        await _deleteItem(item['id']);
+                                      },
+                                    ),
+                                    IconButton(
+                                      icon: const Icon(Icons.info),
+                                      onPressed: () {
+                                        _showDetail(item['id']);
+                                      },
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ]);
+                          }).toList(),
                         ),
                       ),
-                    );
-                  },
+                    ),
+                  ),
                 ),
     );
   }

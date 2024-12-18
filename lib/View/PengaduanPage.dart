@@ -60,11 +60,11 @@ class _PengaduanPageState extends State<PengaduanPage>
         future: _pengaduanList, // Pastikan fungsi fetchPengaduan() sudah benar
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
-            return Center(child: CircularProgressIndicator());
+            return const Center(child: CircularProgressIndicator());
           } else if (snapshot.hasError) {
             return Center(child: Text('Error: ${snapshot.error}'));
           } else if (!snapshot.hasData || snapshot.data!.isEmpty) {
-            return Center(child: Text('Tidak ada data pengaduan.'));
+            return const Center(child: Text('Tidak ada data pengaduan.'));
           } else {
             final pengaduanList = snapshot.data!;
 
@@ -113,7 +113,7 @@ class _PengaduanPageState extends State<PengaduanPage>
           child: Padding(
             padding: const EdgeInsets.all(8.0),
             child: DataTable(
-              columns: [
+              columns: const [
                 DataColumn(
                     label: Text('ID',
                         style: TextStyle(fontWeight: FontWeight.bold))),
@@ -149,13 +149,13 @@ class _PengaduanPageState extends State<PengaduanPage>
                           borderRadius: BorderRadius.circular(
                               12), // Rounded corner yang lebih besar
                         ),
-                        padding: EdgeInsets.symmetric(
+                        padding: const EdgeInsets.symmetric(
                             horizontal: 20,
                             vertical: 12), // Padding lebih besar
                         elevation: 5, // Memberikan bayangan pada tombol
                         shadowColor: Colors.tealAccent
                             .withOpacity(0.5), // Warna bayangan tombol
-                        side: BorderSide(
+                        side: const BorderSide(
                           color: Color(
                               0xFF0D187E), // Garis border yang lebih halus
                           width: 1.5, // Lebar border
@@ -165,7 +165,7 @@ class _PengaduanPageState extends State<PengaduanPage>
                         _onReviewButtonPressed(
                             pengaduan); // Aksi saat tombol Review ditekan
                       },
-                      child: Row(
+                      child: const Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
                           Icon(Icons.rate_review,
@@ -239,7 +239,7 @@ class _PengaduanPageState extends State<PengaduanPage>
                           },
                           child: const Text('Tutup'),
                           style: ElevatedButton.styleFrom(
-                            backgroundColor: Colors.blue,
+                            backgroundColor: Colors.white,
                             padding: const EdgeInsets.symmetric(
                               horizontal: 20,
                               vertical: 12,

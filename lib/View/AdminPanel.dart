@@ -4,6 +4,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:ssh_web/View/HomePage.dart';
 import 'package:ssh_web/View/InformasiHakHukum.dart';
 import 'package:ssh_web/View/LoginPage.dart';
+import 'package:ssh_web/View/ManageUserPage.dart';
 import 'package:ssh_web/View/PengaduanPage.dart';
 import 'package:ssh_web/View/SettingPage.dart';
 import 'package:ssh_web/component/logout_button.dart';
@@ -141,6 +142,13 @@ class _AdminPanelState extends State<AdminPanel> {
                   },
                 ),
                 ListTile(
+                  title: const Text('Manage User',
+                      style: TextStyle(color: Colors.white)),
+                  onTap: () {
+                    _onItemTapped(4);
+                  },
+                ),
+                ListTile(
                   title: const Text('Settings',
                       style: TextStyle(color: Colors.white)),
                   onTap: () {
@@ -177,6 +185,8 @@ class _AdminPanelState extends State<AdminPanel> {
         return InformasiHakHukum(); // Halaman Informasi Hak & Hukum
       case 3:
         return SettingPage(); // Halaman Settings
+      case 4:
+        return ManageUserPage();
       default:
         return Homepage(onMenuSelected: _onItemTapped);
     }

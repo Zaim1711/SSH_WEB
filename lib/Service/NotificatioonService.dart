@@ -67,6 +67,22 @@ class NotificationService {
     );
   }
 
+  // void showWebNotification(String title, String body) {
+  //   // Memeriksa izin notifikasi
+  //   if (html.Notification.permission == 'granted') {
+  //     // Membuat objek notifikasi dengan judul dan isi
+  //     html.Notification notification = html.Notification(title);
+  //   } else if (html.Notification.permission != 'denied') {
+  //     // Meminta izin notifikasi
+  //     html.Notification.requestPermission().then((permission) {
+  //       if (permission == 'granted') {
+  //         // Membuat objek notifikasi dengan judul dan isi setelah izin diberikan
+  //         html.Notification notification = html.Notification(title);
+  //       }
+  //     });
+  //   }
+  // }
+
   Future<void> onSelectNotification(NotificationResponse response) async {}
 
   Future<void> configureFCM() async {
@@ -84,7 +100,15 @@ class NotificationService {
 
     FirebaseMessaging.onMessage.listen((RemoteMessage message) {
       print('Pesan diterima di foreground: ${message.notification?.title}');
+      showNotification(message.notification?.title ?? 'Tanpa Judul',
+          message.notification?.body ?? 'Tanpa Isi');
     });
+
+    FirebaseMessaging.onMessageOpenedApp.listen((RemoteMessage message) {
+      print('Pesan dibuka: ${message.notification?.title}');
+    });
+
+    FirebaseMessaging.onBackgroundMessage(_firebaseMessagingBackgroundHandler);
   }
 
   static Future<void> _firebaseMessagingBackgroundHandler(
@@ -147,6 +171,7 @@ class NotificationService {
     try {
       // Mendapatkan token perangkat
       String? deviceToken = await messaging.getToken();
+      print(deviceToken);
       if (deviceToken != null) {
         // Mendapatkan ID pengguna dari token akses
         await decodeTokenAndSendToServer(deviceToken);
@@ -177,7 +202,7 @@ class NotificationService {
 
   Future<void> sendTokenToServer(String deviceToken, String userId) async {
     final url =
-        'http://10.0.2.2:8080/api/tokens'; // Ganti dengan URL endpoint Anda
+        'http://localhost:8080/api/tokens'; // Ganti dengan URL endpoint Anda
 
     // Ambil access token dari SharedPreferences
     SharedPreferences prefs = await SharedPreferences.getInstance();

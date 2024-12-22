@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:ssh_web/Service/NotificatioonService.dart';
 
 class Homepage extends StatefulWidget {
   final Function(int) onMenuSelected;
@@ -10,6 +11,18 @@ class Homepage extends StatefulWidget {
 }
 
 class _HomepageState extends State<Homepage> {
+  NotificationService notificationService = NotificationService();
+
+  @override
+  void initState() {
+    super.initState();
+    notificationService.init();
+    notificationService.configureFCM();
+    notificationService.getDeviceToken().then((value) {
+      print('device token');
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -53,6 +66,7 @@ class _HomepageState extends State<Homepage> {
               _buildSectionTitle('User  Management:', Colors.green),
               _buildActionCard('Manage Users', Icons.person, () {
                 // Tautkan ke halaman manajemen pengguna
+                widget.onMenuSelected(4);
               }),
               const SizedBox(height: 20),
               _buildSectionTitle('Site Settings:', Colors.red),

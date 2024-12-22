@@ -1,3 +1,4 @@
+import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:jwt_decoder/jwt_decoder.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -69,6 +70,26 @@ class _AdminPanelState extends State<AdminPanel> {
       }
     } else {
       _navigateToLogOut(context);
+    }
+  }
+
+  Future<void> _deleteFcmToken() async {
+    SharedPreferences prefs = await SharedPreferences.getInstance();
+    String? accessToken = prefs.getString('accesToken');
+
+    if (accessToken != null) {
+      // Call the API to delete the FCM token
+      String url =
+          'http://10.0.2.2:8080/api/tokens/$userId'; // Adjust the URL as needed
+      Dio dio = Dio();
+      dio.options.headers['Authorization'] = 'Bearer $accessToken';
+
+      try {
+        await dio.delete(url);
+        print('FCM token deleted successfully');
+      } catch (e) {
+        print('Error deleting FCM token: $e');
+      }
     }
   }
 
@@ -159,6 +180,7 @@ class _AdminPanelState extends State<AdminPanel> {
                   padding: const EdgeInsets.all(16.0),
                   child: MyButtonLogout(
                     onTap: () async {
+                      await _deleteFcmToken();
                       await _logout();
                       _navigateToLogOut(context);
                     },

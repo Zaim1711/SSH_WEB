@@ -21,6 +21,7 @@ class _ReviewPageState extends State<ReviewPage> {
   late String selectedStatus;
   bool _isLoading = false;
   bool _showImage = false; // Flag untuk mengontrol tampilan gambar
+  bool isNotificationSent = false; // Tambahkan variabel ini
   final NotificationService _notificationService = NotificationService();
 
   @override
@@ -216,20 +217,28 @@ class _ReviewPageState extends State<ReviewPage> {
                                     widget.pengaduan.id, selectedStatus);
 
                                 if (success) {
-                                  await _notificationService.sendNotification(
-                                    widget.pengaduan.userId,
-                                    'Laporan Anda $selectedStatus',
-                                    'Status pengaduan ${widget.pengaduan.jenisKekerasan} Anda telah diperbarui menjadi $selectedStatus.',
-                                  );
+                                  // Cek apakah notifikasi sudah dikirim
+                                  if (!isNotificationSent) {
+                                    await _notificationService.sendNotification(
+                                      widget.pengaduan.userId,
+                                      'Laporan Anda $selectedStatus',
+                                      'Status pengaduan ${widget.pengaduan.jenisKekerasan} Anda telah diperbarui menjadi $selectedStatus.',
+                                    );
 
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    SnackBar(
-                                      content: Text(
-                                          'Status berhasil diperbarui menjadi $selectedStatus'),
-                                      backgroundColor: Colors.green,
-                                      duration: Duration(seconds: 2),
-                                    ),
-                                  );
+                                    setState(() {
+                                      isNotificationSent =
+                                          true; // Tandai sebagai terkirim
+                                    });
+
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      SnackBar(
+                                        content: Text(
+                                            'Status berhasil diperbarui menjadi $selectedStatus'),
+                                        backgroundColor: Colors.green,
+                                        duration: Duration(seconds: 2),
+                                      ),
+                                    );
+                                  }
                                 } else {
                                   ScaffoldMessenger.of(context).showSnackBar(
                                     const SnackBar(

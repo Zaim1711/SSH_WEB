@@ -16,6 +16,7 @@ class _HomepageState extends State<Homepage> {
   @override
   void initState() {
     super.initState();
+
     notificationService.init();
     notificationService.configureFCM();
     notificationService.getDeviceToken().then((value) {

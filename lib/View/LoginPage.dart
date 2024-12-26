@@ -16,6 +16,7 @@ class LoginPage extends StatelessWidget {
   User user = User("", "");
   String url =
       "http://localhost:8080/auth/login"; // Ganti dengan URL backend Anda
+  final FocusNode _focusNode = FocusNode();
 
   Future<void> save(BuildContext context) async {
     if (user.email.isEmpty) {
@@ -185,6 +186,7 @@ class LoginPage extends StatelessWidget {
                           return null;
                         },
                       ),
+
                       const SizedBox(height: 20),
 
                       // Tombol Lupa Kata Sandi
@@ -204,10 +206,12 @@ class LoginPage extends StatelessWidget {
 
                       // Tombol Login
                       MyButton(
+                        focusNode: _focusNode,
                         onTap: () {
                           save(context);
                         },
                       ),
+
                       const SizedBox(height: 20),
 
                       // Teks Daftar

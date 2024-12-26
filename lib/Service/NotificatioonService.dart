@@ -269,4 +269,34 @@ class NotificationService {
       print('Error saat mengirim notifikasi: $e');
     }
   }
+
+  // Menambahkan metode untuk mengirimkan notifikasi SOS
+  Future<void> sendSOSNotification(String userId) async {
+    final String title = 'Tombol Darurat Ditekan';
+    final String body = 'Pengguna $userId memerlukan bantuan darurat.';
+
+    // Mengirim notifikasi darurat ke server
+    await sendNotification(userId, title, body);
+
+    // Menampilkan notifikasi lokal untuk memberi tahu pengguna bahwa SOS telah terkirim
+    await showNotification(title, body);
+  }
+
+  // Menambahkan metode untuk memicu pengiriman notifikasi SOS
+  Future<void> onSOSButtonPressed() async {
+    SharedPreferences prefs = await SharedPreferences.getInstance();
+    String? accessToken = prefs.getString('accesToken');
+
+    if (accessToken != null) {
+      // Mendekode token untuk mendapatkan userId
+      Map<String, dynamic> payload = JwtDecoder.decode(accessToken);
+      String userId = payload['sub'].split(',')[0];
+      print('User ID untuk SOS: $userId');
+
+      // Mengirimkan notifikasi SOS
+      await sendSOSNotification(userId);
+    } else {
+      print('Access token tidak ditemukan');
+    }
+  }
 }

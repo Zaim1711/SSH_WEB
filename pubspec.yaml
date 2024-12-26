@@ -43,6 +43,14 @@ dependencies:
   firebase_messaging: ^15.1.5
   flutter_local_notifications: ^18.0.1
   dio: ^5.7.0
+  web_socket_channel: ^3.0.1
+  latlong2: ^0.9.1
+  flutter_map: ^7.0.2
+  flutter_map_cancellable_tile_provider: ^3.0.2
+  flutter_osm_plugin: ^0.70.4
+  fluttertoast: ^8.2.10
+  intl: ^0.20.1
+  geocoding: ^3.0.0
 
 dev_dependencies:
   flutter_test:

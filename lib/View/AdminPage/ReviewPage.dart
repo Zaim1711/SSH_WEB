@@ -1,11 +1,13 @@
 import 'dart:convert';
 import 'dart:typed_data';
 
+import 'package:chewie/chewie.dart';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:ssh_web/Model/Pengaduan.dart';
 import 'package:ssh_web/Service/NotificatioonService.dart';
+import 'package:video_player/video_player.dart';
 
 class ReviewPage extends StatefulWidget {
   final Pengaduan pengaduan;
@@ -20,14 +22,56 @@ class _ReviewPageState extends State<ReviewPage> {
   Uint8List? _imageBytes;
   late String selectedStatus;
   bool _isLoading = false;
-  bool _showImage = false; // Flag untuk mengontrol tampilan gambar
+  bool _showMedia = false; // Flag untuk mengontrol tampilan gambar
   bool isNotificationSent = false; // Tambahkan variabel ini
   final NotificationService _notificationService = NotificationService();
+
+  VideoPlayerController? _videoController;
+  ChewieController? _chewieController;
 
   @override
   void initState() {
     super.initState();
     selectedStatus = widget.pengaduan.status.toString().split('.').last;
+    if (widget.pengaduan.buktiKekerasan.toLowerCase().endsWith('.mp4')) {
+      _initializeVideo();
+    }
+  }
+
+  void _initializeVideo() async {
+    SharedPreferences prefs = await SharedPreferences.getInstance();
+    String? accessToken = prefs.getString('accesToken');
+
+    if (accessToken != null) {
+      final videoUrl =
+          'http://localhost:8080/pengaduan/image/${widget.pengaduan.buktiKekerasan}';
+      _videoController = VideoPlayerController.network(
+        videoUrl,
+        httpHeaders: {
+          'Authorization': 'Bearer $accessToken',
+        },
+      );
+
+      await _videoController!.initialize();
+
+      _chewieController = ChewieController(
+        videoPlayerController: _videoController!,
+        autoPlay: false,
+        looping: false,
+        aspectRatio: 16 / 9,
+        placeholder: Center(child: CircularProgressIndicator()),
+        autoInitialize: true,
+      );
+
+      if (mounted) setState(() {});
+    }
+  }
+
+  @override
+  void dispose() {
+    _videoController?.dispose();
+    _chewieController?.dispose();
+    super.dispose();
   }
 
   Future<Uint8List?> fetchImage(String imageName) async {
@@ -56,6 +100,45 @@ class _ReviewPageState extends State<ReviewPage> {
     } catch (e) {
       print('Terjadi kesalahan saat mengambil gambar: $e');
       return null;
+    }
+  }
+
+  Widget _buildMediaDisplay() {
+    final String fileExtension =
+        widget.pengaduan.buktiKekerasan.split('.').last.toLowerCase();
+
+    if (fileExtension == 'mp4') {
+      if (_chewieController != null) {
+        return Container(
+          width: 500, // Adjust width as needed
+          height: 281, // 16:9 aspect ratio
+          child: Chewie(
+            controller: _chewieController!,
+          ),
+        );
+      } else {
+        return Center(child: CircularProgressIndicator());
+      }
+    } else {
+      return FutureBuilder<Uint8List?>(
+        future: fetchImage(widget.pengaduan.buktiKekerasan),
+        builder: (context, snapshot) {
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            return Center(child: CircularProgressIndicator());
+          } else if (snapshot.hasError || snapshot.data == null) {
+            return Center(child: Text('Media tidak tersedia'));
+          } else {
+            return Center(
+              child: Image.memory(
+                snapshot.data!,
+                width: 500,
+                height: 281,
+                fit: BoxFit.contain,
+              ),
+            );
+          }
+        },
+      );
     }
   }
 
@@ -129,38 +212,22 @@ class _ReviewPageState extends State<ReviewPage> {
 
                   // Tombol untuk melihat bukti kekerasan
                   ElevatedButton(
-                    onPressed: () async {
+                    onPressed: () {
                       setState(() {
-                        _showImage = !_showImage; // Toggle tampilan gambar
+                        _showMedia = !_showMedia;
                       });
                     },
-                    child: Text(_showImage
+                    child: Text(_showMedia
                         ? 'Sembunyikan Bukti'
                         : 'Lihat Bukti Kekerasan'),
                   ),
 
                   // Menampilkan gambar jika tombol ditekan
-                  if (_showImage)
-                    FutureBuilder<Uint8List?>(
-                      future: fetchImage(widget.pengaduan.buktiKekerasan),
-                      builder: (context, snapshot) {
-                        if (snapshot.connectionState ==
-                            ConnectionState.waiting) {
-                          return Center(child: CircularProgressIndicator());
-                        } else if (snapshot.hasError || snapshot.data == null) {
-                          return Center(child: Text('Gambar tidak tersedia'));
-                        } else {
-                          return Center(
-                            child: Image.memory(
-                              snapshot.data!,
-                              width: 150,
-                              height: 150,
-                              fit: BoxFit.cover,
-                            ),
-                          );
-                        }
-                      },
-                    ),
+                  if (_showMedia) ...[
+                    SizedBox(height: 20),
+                    _buildMediaDisplay(),
+                    SizedBox(height: 20),
+                  ],
 
                   // Pilihan Status menggunakan DropdownButton
                   const Text(

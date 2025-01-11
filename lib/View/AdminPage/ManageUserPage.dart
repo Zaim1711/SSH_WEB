@@ -3,7 +3,7 @@ import 'dart:core';
 import 'package:flutter/material.dart';
 import 'package:ssh_web/Model/Role.dart';
 import 'package:ssh_web/Model/users.dart';
-import 'package:ssh_web/View/ReviewUser.dart';
+import 'package:ssh_web/View/AdminPage/ReviewUser.dart';
 
 class ManageUserPage extends StatefulWidget {
   const ManageUserPage({super.key});

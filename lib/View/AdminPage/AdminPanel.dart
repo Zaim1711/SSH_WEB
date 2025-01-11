@@ -1,19 +1,17 @@
 import 'dart:async';
 import 'dart:convert'; // Untuk jsonDecode
 
-import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:jwt_decoder/jwt_decoder.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:ssh_web/View/AdminChatPage.dart';
-import 'package:ssh_web/View/HomePage.dart';
-import 'package:ssh_web/View/InformasiHakHukum.dart';
-import 'package:ssh_web/View/LoginPage.dart';
-import 'package:ssh_web/View/ManageUserPage.dart';
-import 'package:ssh_web/View/PengaduanPage.dart';
-import 'package:ssh_web/View/RealTimeTrackingSOS.dart';
-import 'package:ssh_web/View/SettingPage.dart';
-import 'package:ssh_web/component/logout_button.dart';
+import 'package:ssh_web/View/AdminPage/AdminChatPage.dart';
+import 'package:ssh_web/View/AdminPage/HomePage.dart';
+import 'package:ssh_web/View/AdminPage/InformasiHakHukum.dart';
+import 'package:ssh_web/View/AdminPage/LoginPage.dart';
+import 'package:ssh_web/View/AdminPage/ManageUserPage.dart';
+import 'package:ssh_web/View/AdminPage/PengaduanPage.dart';
+import 'package:ssh_web/View/AdminPage/RealTimeTrackingSOS.dart';
+import 'package:ssh_web/View/AdminPage/SettingPage.dart';
 import 'package:web_socket_channel/web_socket_channel.dart';
 
 class AdminPanel extends StatefulWidget {
@@ -74,11 +72,6 @@ class _AdminPanelState extends State<AdminPanel> {
     setState(() {
       _selectedIndex = index;
     });
-  }
-
-  Future<void> _logout() async {
-    SharedPreferences prefs = await SharedPreferences.getInstance();
-    await prefs.remove('accesToken');
   }
 
   void _showSOSNotification(
@@ -159,24 +152,6 @@ class _AdminPanelState extends State<AdminPanel> {
     }
   }
 
-  Future<void> _deleteFcmToken() async {
-    SharedPreferences prefs = await SharedPreferences.getInstance();
-    String? accessToken = prefs.getString('accesToken');
-
-    if (accessToken != null) {
-      String url = 'http://10.0.2.2:8080/api/tokens/$userId';
-      Dio dio = Dio();
-      dio.options.headers['Authorization'] = 'Bearer $accessToken';
-
-      try {
-        await dio.delete(url);
-        print('FCM token deleted successfully');
-      } catch (e) {
-        print('Error deleting FCM token: $e');
-      }
-    }
-  }
-
   void _showAccessDeniedMessage(BuildContext context) {
     showDialog(
       context: context,
@@ -211,15 +186,12 @@ class _AdminPanelState extends State<AdminPanel> {
             child: ListView(
               padding: EdgeInsets.zero,
               children: <Widget>[
-                const DrawerHeader(
-                  decoration: BoxDecoration(
-                    color: Color(0xFF0D187E),
-                  ),
-                  child: Text(
-                    'Menu',
+                const ListTile(
+                  title: Text(
+                    'MAIN MENU',
                     style: TextStyle(
                       color: Colors.white,
-                      fontSize: 24,
+                      fontSize: 12,
                     ),
                   ),
                 ),
@@ -280,6 +252,18 @@ class _AdminPanelState extends State<AdminPanel> {
                     _onItemTapped(5);
                   },
                 ),
+                const SizedBox(
+                  height: 20,
+                ),
+                const ListTile(
+                  title: Text(
+                    'SETTINGS',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 12,
+                    ),
+                  ),
+                ),
                 ListTile(
                   leading: const Icon(
                     Icons.settings,
@@ -290,16 +274,6 @@ class _AdminPanelState extends State<AdminPanel> {
                   onTap: () {
                     _onItemTapped(3);
                   },
-                ),
-                Padding(
-                  padding: const EdgeInsets.all(16.0),
-                  child: MyButtonLogout(
-                    onTap: () async {
-                      await _deleteFcmToken();
-                      await _logout();
-                      _navigateToLogOut(context);
-                    },
-                  ),
                 ),
               ],
             ),

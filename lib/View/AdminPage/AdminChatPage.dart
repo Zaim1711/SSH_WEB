@@ -5,13 +5,14 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:fluttertoast/fluttertoast.dart';
 import 'package:http/http.dart' as http;
+import 'package:intl/intl.dart';
 import 'package:jwt_decoder/jwt_decoder.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:ssh_web/Model/ChatRoom.dart';
 import 'package:ssh_web/Model/UserChat.dart';
 import 'package:ssh_web/Service/NotificatioonService.dart';
 import 'package:ssh_web/Service/UserService.dart';
-import 'package:ssh_web/View/ChatRoomService.dart';
+import 'package:ssh_web/View/AdminPage/ChatRoomService.dart';
 
 class AdminChatPage extends StatefulWidget {
   @override
@@ -31,13 +32,125 @@ class _AdminChatPageState extends State<AdminChatPage> {
   StreamSubscription<QuerySnapshot>? _messageSubscription;
   final NotificationService _notificationService = NotificationService();
   final FocusNode _focusNode = FocusNode();
+  bool _isInChatScreen = false;
+  String _lastSeen = '';
+  StreamSubscription<DocumentSnapshot>? _userStatusSubscription;
 
   @override
   void initState() {
     super.initState();
     futureChatRooms = Future.value([]);
     _focusNode.requestFocus();
+    _scrollToBottom();
     decodeToken();
+  }
+
+  Future<void> _updateUserStatus(bool isActive) async {
+    if (selectedRoom == null) return;
+
+    await FirebaseFirestore.instance
+        .collection('chatrooms')
+        .doc(selectedRoom!.id.toString())
+        .collection('user_status')
+        .doc(userId)
+        .set({
+      'isActive': isActive,
+      'lastActive': DateTime.now().toIso8601String(),
+      'userId': userId,
+    });
+  }
+
+// Tambahkan fungsi ini untuk memastikan pesan ditandai sebagai dibaca
+  void _markMessageAsRead(String messageId) async {
+    if (selectedRoom == null) return;
+
+    await FirebaseFirestore.instance
+        .collection('chatrooms')
+        .doc(selectedRoom!.id.toString())
+        .collection('messages')
+        .doc(messageId)
+        .update({'isRead': true});
+  }
+
+  void markAllMessagesAsRead() async {
+    if (selectedRoom == null) return;
+
+    try {
+      final messagesQuery = FirebaseFirestore.instance
+          .collection('chatrooms')
+          .doc(selectedRoom!.id.toString())
+          .collection('messages')
+          .where('senderId', isNotEqualTo: userId)
+          .where('isRead', isEqualTo: false);
+
+      final querySnapshot = await messagesQuery.get();
+
+      if (querySnapshot.docs.isEmpty) {
+        print('No messages need to be marked as read.');
+        return;
+      }
+
+      final batch = FirebaseFirestore.instance.batch();
+
+      for (var doc in querySnapshot.docs) {
+        batch.update(doc.reference, {'isRead': true});
+      }
+
+      await batch.commit();
+      print('All messages marked as read!');
+    } catch (error) {
+      print('Failed to mark messages as read: $error');
+    }
+  }
+
+  // Add method to format last seen time
+  String _formatLastSeen(DateTime lastSeen) {
+    final now = DateTime.now();
+    final difference = now.difference(lastSeen);
+
+    if (difference.inMinutes < 1) {
+      return 'Just now';
+    } else if (difference.inHours < 1) {
+      return '${difference.inMinutes} minutes ago';
+    } else if (difference.inHours < 24) {
+      return '${difference.inHours} hours ago';
+    } else {
+      return DateFormat('dd/MM/yyyy HH:mm').format(lastSeen);
+    }
+  }
+
+  // Modify the method when selecting a user
+  void selectUser(User user, ChatRoom room) {
+    setState(() {
+      selectedUser = user;
+      selectedRoom = room;
+      _isInChatScreen = true;
+    });
+
+    // Start listening to user status
+    _userStatusSubscription?.cancel();
+    _userStatusSubscription = FirebaseFirestore.instance
+        .collection('chatrooms')
+        .doc(selectedRoom!.id.toString())
+        .collection('user_status')
+        .doc(user.id.toString())
+        .snapshots()
+        .listen((snapshot) {
+      if (snapshot.exists) {
+        final data = snapshot.data() as Map<String, dynamic>;
+        setState(() {
+          _isInChatScreen = data['isActive'] ?? false;
+          if (!_isInChatScreen && data['lastActive'] != null) {
+            DateTime lastActive = DateTime.parse(data['lastActive']);
+            _lastSeen = _formatLastSeen(lastActive);
+          }
+        });
+      }
+    });
+
+    // Mark messages as read when selecting a chat
+    markAllMessagesAsRead();
+    _updateUserStatus(true);
   }
 
   Future<void> createRoom(User user, String userId) async {
@@ -153,6 +266,15 @@ class _AdminChatPageState extends State<AdminChatPage> {
     }
   }
 
+  // Override untuk mendeteksi ketika widget dimuat dan dihancurkan
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    setState(() {
+      _isInChatScreen = true;
+    });
+  }
+
   void _showUserListDialog() {
     showDialog(
       context: context,
@@ -209,6 +331,93 @@ class _AdminChatPageState extends State<AdminChatPage> {
     );
   }
 
+  Future<User> fetchUser(String receiverId) async {
+    // Retrieve the access token from shared preferences
+    SharedPreferences prefs = await SharedPreferences.getInstance();
+    String? accessToken = prefs.getString(
+        'accesToken'); // Ensure the key matches what you used to store the token
+
+    // Make the GET request to fetch the user
+    final response = await http.get(
+      Uri.parse('http://localhost:8080/users/$receiverId'),
+      headers: {
+        'Authorization':
+            'Bearer $accessToken', // Include the token in the headers
+      },
+    );
+
+    // Check the response status
+    if (response.statusCode == 200) {
+      // Decode the JSON response and return a User object
+      return User.fromJson(json.decode(response.body));
+    } else {
+      throw Exception(
+          'Failed to load user'); // Handle error if the request fails
+    }
+  }
+
+  void _showDeleteChatDialog(ChatRoom chatRoom) {
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: Text("Hapus Chat"),
+          content: Text("Apakah Anda yakin ingin menghapus chat ini?"),
+          actions: [
+            TextButton(
+              onPressed: () {
+                Navigator.pop(context); // Tutup dialog
+              },
+              child: Text("Batal"),
+            ),
+            TextButton(
+              onPressed: () {
+                _deleteChatRoom(chatRoom); // Hapus chat room
+                Navigator.pop(context); // Tutup dialog
+              },
+              child: Text("Hapus", style: TextStyle(color: Colors.red)),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  Future<void> _deleteChatRoom(ChatRoom chatRoom) async {
+    try {
+      // Hapus chat room dari Firestore
+      await FirebaseFirestore.instance
+          .collection('chatrooms')
+          .doc(chatRoom.id.toString())
+          .delete();
+
+      // Update state untuk menghapus chat room dari daftar
+      setState(() {
+        futureChatRooms = futureChatRooms.then((chatRooms) {
+          chatRooms.removeWhere((room) => room.id == chatRoom.id);
+          return chatRooms;
+        });
+      });
+
+      // Tampilkan notifikasi
+      showNotification("Chat berhasil dihapus");
+    } catch (error) {
+      print("Gagal menghapus chat: $error");
+      showNotification("Gagal menghapus chat");
+    }
+  }
+
+  @override
+  void dispose() {
+    _messageSubscription?.cancel();
+    _userStatusSubscription?.cancel();
+    _updateUserStatus(false);
+    _messageController.dispose();
+    _scrollController.dispose();
+    _focusNode.dispose();
+    super.dispose();
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -246,39 +455,70 @@ class _AdminChatPageState extends State<AdminChatPage> {
                   child: FutureBuilder<List<ChatRoom>>(
                     future: futureChatRooms,
                     builder: (context, snapshot) {
-                      if (!snapshot.hasData)
-                        return Center(child: CircularProgressIndicator());
+                      if (!snapshot.hasData) {
+                        return const Center(child: CircularProgressIndicator());
+                      } else if (snapshot.hasError) {
+                        return Center(child: Text('Error : ${snapshot.error}'));
+                      } else if (!snapshot.hasData || snapshot.data!.isEmpty) {
+                        return const Center(child: Text('Belum ada chat'));
+                      }
+                      List<ChatRoom> chatRooms = snapshot.data!;
+
                       return ListView.builder(
-                        itemCount: snapshot.data!.length,
-                        itemBuilder: (context, index) {
-                          return FutureBuilder<User>(
-                            future: UserService()
-                                .fetchUser(snapshot.data![index].receiverId!),
-                            builder: (context, userSnapshot) {
-                              if (!userSnapshot.hasData) return SizedBox();
-                              return ListTile(
-                                leading: CircleAvatar(
-                                  backgroundImage:
-                                      userSnapshot.data!.profileImage.isNotEmpty
-                                          ? NetworkImage(
-                                              userSnapshot.data!.profileImage)
-                                          : null,
-                                ),
-                                title: Text(userSnapshot.data!.email),
-                                selected:
-                                    selectedUser?.id == userSnapshot.data!.id,
-                                onTap: () {
-                                  setState(() {
-                                    selectedUser = userSnapshot.data;
-                                    selectedRoom = snapshot
-                                        .data![index]; // Set the selectedRoom
-                                  });
-                                },
-                              );
-                            },
-                          );
-                        },
-                      );
+                          itemCount: chatRooms.length,
+                          itemBuilder: (context, index) {
+                            String targetUserId =
+                                chatRooms[index].receiverId == userId
+                                    ? chatRooms[index].senderId!
+                                    : (chatRooms[index].receiverId!);
+                            return FutureBuilder<User>(
+                                future: fetchUser(targetUserId),
+                                builder: (context, userSnapshot) {
+                                  if (userSnapshot.connectionState ==
+                                      ConnectionState.waiting) {
+                                    return const ListTile(
+                                      title: Text('Loading...'),
+                                    );
+                                  } else if (userSnapshot.hasError) {
+                                    return ListTile(
+                                      title:
+                                          Text('Error ${userSnapshot.error}'),
+                                    );
+                                  } else if (!userSnapshot.hasData) {
+                                    return const ListTile(
+                                      title: Text('User tidak ditemukan'),
+                                    );
+                                  }
+                                  User user = userSnapshot.data!;
+                                  return GestureDetector(
+                                    onLongPress: () {
+                                      _showDeleteChatDialog(chatRooms[index]);
+                                    },
+                                    child: ListTile(
+                                      leading: CircleAvatar(
+                                        radius: 20,
+                                        child: Text(
+                                          user.username[0].toUpperCase(),
+                                          style: TextStyle(color: Colors.white),
+                                        ),
+                                      ),
+                                      title: Text(user.email ??
+                                          "Pengguna tidak diketahui"),
+                                      onTap: () {
+                                        setState(
+                                          () {
+                                            selectedUser = userSnapshot.data;
+                                            selectedRoom = snapshot.data![
+                                                index]; // Set the selectedRoom
+                                            selectUser(userSnapshot.data!,
+                                                snapshot.data![index]);
+                                          },
+                                        );
+                                      },
+                                    ),
+                                  );
+                                });
+                          });
                     },
                   ),
                 ),
@@ -300,9 +540,32 @@ class _AdminChatPageState extends State<AdminChatPage> {
                         ),
                         child: Row(
                           children: [
-                            Text(selectedUser!.username,
-                                style: TextStyle(
-                                    fontSize: 16, fontWeight: FontWeight.bold)),
+                            Text(
+                              selectedUser!.username,
+                              style: TextStyle(
+                                  fontSize: 16, fontWeight: FontWeight.bold),
+                            ),
+                            SizedBox(width: 8),
+                            Container(
+                              width: 8,
+                              height: 8,
+                              decoration: BoxDecoration(
+                                shape: BoxShape.circle,
+                                color: _isInChatScreen
+                                    ? Colors.green
+                                    : Colors.grey,
+                              ),
+                            ),
+                            SizedBox(width: 8),
+                            Text(
+                              _isInChatScreen
+                                  ? 'Sedang didalam obrolan'
+                                  : 'Last seen $_lastSeen',
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: Colors.grey,
+                              ),
+                            ),
                           ],
                         ),
                       ),
@@ -317,15 +580,24 @@ class _AdminChatPageState extends State<AdminChatPage> {
                           builder: (context, snapshot) {
                             if (!snapshot.hasData)
                               return Center(child: CircularProgressIndicator());
+
+                            WidgetsBinding.instance.addPostFrameCallback((_) {
+                              _scrollToBottom();
+                            });
+
                             return ListView.builder(
+                              controller: _scrollController,
                               itemCount: snapshot.data!.docs.length,
                               itemBuilder: (context, index) {
-                                var message = snapshot.data!.docs[index];
+                                var messageData = snapshot.data!.docs[index]
+                                    .data() as Map<String, dynamic>;
                                 return MessageBubble(
-                                  message: message['messageContent'],
-                                  isSender: message['senderId'] == userId,
+                                  message: messageData['messageContent'],
+                                  isSender: messageData['senderId'] == userId,
                                   timestamp:
-                                      DateTime.parse(message['timestamp']),
+                                      DateTime.parse(messageData['timestamp']),
+                                  isRead: messageData['isRead'] ??
+                                      false, // Pastikan mengambil status isRead
                                 );
                               },
                             );
@@ -374,15 +646,18 @@ class _AdminChatPageState extends State<AdminChatPage> {
   }
 }
 
+// Update MessageBubble widget
 class MessageBubble extends StatelessWidget {
   final String message;
   final bool isSender;
   final DateTime timestamp;
+  final bool isRead;
 
   MessageBubble({
     required this.message,
     required this.isSender,
     required this.timestamp,
+    required this.isRead, // Ubah default value menjadi required
   });
 
   @override
@@ -405,12 +680,28 @@ class MessageBubble extends StatelessWidget {
                 color: isSender ? Colors.white : Colors.black,
               ),
             ),
-            Text(
-              '${timestamp.hour}:${timestamp.minute}',
-              style: TextStyle(
-                fontSize: 12,
-                color: isSender ? Colors.white70 : Colors.grey,
-              ),
+            Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  '${timestamp.hour.toString().padLeft(2, '0')}:${timestamp.minute.toString().padLeft(2, '0')}',
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: isSender ? Colors.white70 : Colors.grey,
+                  ),
+                ),
+                if (isSender) ...[
+                  SizedBox(width: 4),
+                  Icon(
+                    isRead
+                        ? Icons.done_all
+                        : Icons
+                            .done, // Menggunakan icon untuk visual yang lebih baik
+                    size: 16,
+                    color: Colors.white70,
+                  ),
+                ],
+              ],
             ),
           ],
         ),

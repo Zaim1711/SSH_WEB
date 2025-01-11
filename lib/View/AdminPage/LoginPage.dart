@@ -5,7 +5,8 @@ import 'package:http/http.dart' as http;
 import 'package:jwt_decoder/jwt_decoder.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:ssh_web/Model/user.dart';
-import 'package:ssh_web/View/AdminPanel.dart';
+import 'package:ssh_web/View/AdminPage/AdminPanel.dart';
+import 'package:ssh_web/View/KonsultanPage/KonsultanPanel.dart';
 import 'package:ssh_web/component/My_TextField.dart';
 import 'package:ssh_web/component/my_button.dart';
 import 'package:ssh_web/component/password_TextField.dart';
@@ -17,6 +18,29 @@ class LoginPage extends StatelessWidget {
   String url =
       "http://localhost:8080/auth/login"; // Ganti dengan URL backend Anda
   final FocusNode _focusNode = FocusNode();
+
+  Future<void> decodeToken(BuildContext context, String accessToken) async {
+    Map<String, dynamic> decodedToken = JwtDecoder.decode(accessToken);
+    print('Token payload: $decodedToken');
+
+    final prefs = await SharedPreferences.getInstance();
+    prefs.setString('accesToken', accessToken);
+
+    // Validasi Role
+    final role = decodedToken['roles']; // Asumsi role ada di payload token
+    if (role.contains('ROLE_ADMIN')) {
+      Navigator.of(context, rootNavigator: true).pushReplacement(
+        MaterialPageRoute(builder: (context) => AdminPanel()),
+      );
+    } else if (role.contains('ROLE_KONSULTAN')) {
+      Navigator.of(context, rootNavigator: true).pushReplacement(
+        MaterialPageRoute(builder: (context) => KonsultanPanel()),
+      );
+    } else {
+      _showErrorDialog(context, 'Role tidak valid.');
+    }
+    print(role);
+  }
 
   Future<void> save(BuildContext context) async {
     if (user.email.isEmpty) {
@@ -54,9 +78,20 @@ class LoginPage extends StatelessWidget {
         final prefs = await SharedPreferences.getInstance();
         prefs.setString('accesToken', accessToken);
 
-        Navigator.of(context, rootNavigator: true).pushReplacement(
-          MaterialPageRoute(builder: (context) => AdminPanel()),
-        );
+        // Validasi Role
+        if (response.statusCode == 200) {
+          final responseData = json.decode(response.body);
+          final accessToken = responseData['accesToken'];
+
+          if (accessToken != null && accessToken is String) {
+            await decodeToken(context, accessToken);
+          } else {
+            _showErrorDialog(
+                context, 'Format token tidak valid. Silakan coba lagi.');
+          }
+        } else {
+          _showErrorDialog(context, 'Role tidak valid.');
+        }
       } else {
         _showErrorDialog(
             context, 'Format token tidak valid. Silakan coba lagi.');

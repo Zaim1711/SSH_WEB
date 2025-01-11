@@ -51,6 +51,9 @@ dependencies:
   fluttertoast: ^8.2.10
   intl: ^0.20.1
   geocoding: ^3.0.0
+  video_player: ^2.9.2
+  chewie: ^1.8.5
+  image_picker: ^1.1.2
 
 dev_dependencies:
   flutter_test:

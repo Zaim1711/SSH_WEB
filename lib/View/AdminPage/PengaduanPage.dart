@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:ssh_web/Model/Pengaduan.dart';
-import 'package:ssh_web/View/ReviewPage.dart';
+import 'package:ssh_web/View/AdminPage/ReviewPage.dart';
 
 class PengaduanPage extends StatefulWidget {
   @override

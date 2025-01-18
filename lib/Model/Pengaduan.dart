@@ -3,7 +3,7 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 
-enum Status { Validation, Approved, Rejected }
+enum Status { Validation, Approved, Rejected, Done }
 
 class Pengaduan {
   final int id;

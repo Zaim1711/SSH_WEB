@@ -19,6 +19,7 @@ class _ProfilePageState extends State<ProfilePage> {
   late Future<DetailsUser?> _initializationFuture;
   XFile? _pickedImage;
   Uint8List? _webImage;
+  late DetailsUser detailsUser;
   File? _image;
   String userName = '';
   String userEmail = '';
@@ -26,7 +27,6 @@ class _ProfilePageState extends State<ProfilePage> {
   String userRole = 'Admin';
   String accessToken = '';
   final _picker = ImagePicker();
-  bool isLoading = false;
   final TextEditingController nameController = TextEditingController();
   final TextEditingController emailController = TextEditingController();
   final TextEditingController phoneController = TextEditingController();
@@ -151,50 +151,6 @@ class _ProfilePageState extends State<ProfilePage> {
     } else {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Error saving profile: ${response.body}')),
-      );
-    }
-  }
-
-  Future<void> _createUserDetails() async {
-    final String nik = nikController.text;
-    final String alamat = alamatController.text;
-    final String nomorTelepon = phoneController.text;
-    SharedPreferences prefs = await SharedPreferences.getInstance();
-    String? accessToken = prefs.getString('accesToken');
-
-    if (accessToken == null) {
-      throw Exception('Access token is null');
-    }
-
-    Map<String, dynamic> payload = JwtDecoder.decode(accessToken);
-    String userId = payload['sub'].split(',')[0];
-
-    try {
-      final response = await http.post(
-        Uri.parse('http://localhost:8080/details/create'),
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: json.encode({
-          'nik': nik,
-          'alamat': alamat,
-          'nomor_telepon': nomorTelepon,
-          'userId': userId,
-        }),
-      );
-
-      if (response.statusCode == 200) {
-        print('Profile Berhasil disimpan');
-      } else {
-        print('Failed to update profile: ${response.statusCode}');
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Failed to update profile')),
-        );
-      }
-    } catch (e) {
-      print('Error: $e');
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('An error occurred')),
       );
     }
   }
@@ -346,9 +302,9 @@ class _ProfilePageState extends State<ProfilePage> {
     }
   }
 
-  Widget _buildProfileImageWithFuture(String imageUrl) {
+  Widget _buildProfileImageWithFuture() {
     return FutureBuilder<Uint8List?>(
-      future: fetchImage(imageUrl),
+      future: fetchImage(detailsUser.imageUrl ?? ''),
       builder: (BuildContext context, AsyncSnapshot<Uint8List?> snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
           return CircleAvatar(
@@ -457,58 +413,21 @@ class _ProfilePageState extends State<ProfilePage> {
                   ),
                 );
               } else if (!snapshot.hasData) {
-                // Jika data tidak ada, tampilkan form untuk menambah profil
                 return Center(
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      const Icon(Icons.person, color: Colors.grey, size: 50),
-                      const SizedBox(height: 10),
-                      const Text(
-                        'No profile data available.',
-                        textAlign: TextAlign.center,
-                        style: TextStyle(fontSize: 16),
-                      ),
-                      SizedBox(height: 20),
-                      // _buildProfileImageWithFuture(
-                      //     snapshot.data?.imageUrl ?? ''),
-                      // Positioned(
-                      //   bottom: 0,
-                      //   right: 0,
-                      //   child: CircleAvatar(
-                      //     backgroundColor: Colors.blue,
-                      //     radius: 18,
-                      //     child: IconButton(
-                      //       icon: Icon(Icons.camera_alt,
-                      //           size: 18, color: Colors.white),
-                      //       onPressed: _pickImage,
-                      //     ),
-                      //   ),
-                      // ),
-                      // Form untuk mengisi data profil
-                      _buildInfoRow('Alamat', alamatController),
-                      _buildInfoRow('Nik', nikController),
-                      _buildInfoRow('Phone', phoneController),
-                      SizedBox(height: 20),
-                      ElevatedButton(
-                        onPressed: () async {
-                          // Logika untuk menyimpan data yang dimasukkan
-                          await _createUserDetails();
-                        },
-                        child: Text('Save Changes'),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.blueAccent,
-                          padding: EdgeInsets.symmetric(vertical: 16),
-                          textStyle: TextStyle(
-                            fontSize: 18,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                      ),
+                    children: const [
+                      Icon(Icons.person, color: Colors.grey, size: 50),
+                      SizedBox(height: 10),
+                      Text('No profile data available.',
+                          textAlign: TextAlign.center,
+                          style: TextStyle(fontSize: 16)),
                     ],
                   ),
                 );
               } else {
+                detailsUser = snapshot.data!;
+
                 return Card(
                   elevation: 10,
                   margin: EdgeInsets.all(8.0),
@@ -531,8 +450,7 @@ class _ProfilePageState extends State<ProfilePage> {
                           children: [
                             Stack(
                               children: [
-                                _buildProfileImageWithFuture(
-                                    snapshot.data!.imageUrl ?? ''),
+                                _buildProfileImageWithFuture(),
                                 Positioned(
                                   bottom: 0,
                                   right: 0,

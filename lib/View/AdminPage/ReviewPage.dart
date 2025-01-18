@@ -74,6 +74,22 @@ class _ReviewPageState extends State<ReviewPage> {
     super.dispose();
   }
 
+  List<String> _getAvailableStatuses() {
+    String currentStatus = widget.pengaduan.status.toString().split('.').last;
+
+    switch (currentStatus) {
+      case 'Validation':
+        return ['Approved', 'Rejected'];
+      case 'Approved':
+        return ['Done'];
+      case 'Rejected':
+      case 'Done':
+        return [];
+      default:
+        return [];
+    }
+  }
+
   Future<Uint8List?> fetchImage(String imageName) async {
     SharedPreferences prefs = await SharedPreferences.getInstance();
     String? accessToken = prefs.getString('accesToken');
@@ -144,6 +160,14 @@ class _ReviewPageState extends State<ReviewPage> {
 
   @override
   Widget build(BuildContext context) {
+    List<String> availableStatuses = _getAvailableStatuses();
+
+    // Update selectedStatus if current selection is not in available statuses
+    if (!availableStatuses.contains(selectedStatus)) {
+      selectedStatus = availableStatuses.isNotEmpty
+          ? availableStatuses[0]
+          : widget.pengaduan.status.toString().split('.').last;
+    }
     return SingleChildScrollView(
       child: Padding(
         padding: const EdgeInsets.all(20.0),
@@ -229,114 +253,117 @@ class _ReviewPageState extends State<ReviewPage> {
                     SizedBox(height: 20),
                   ],
 
-                  // Pilihan Status menggunakan DropdownButton
-                  const Text(
-                    'Pilih Status Pengaduan:',
-                    style: TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w600,
-                      color: Colors.white,
+                  if (availableStatuses.isNotEmpty) ...[
+                    const Text(
+                      'Pilih Status Pengaduan:',
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w600,
+                        color: Colors.white,
+                      ),
                     ),
-                  ),
-                  DropdownButton<String>(
-                    value: selectedStatus,
-                    onChanged: (String? newStatus) {
-                      if (newStatus != null) {
-                        setState(() {
-                          selectedStatus = newStatus;
-                        });
-                      }
-                    },
-                    items: ['Validation', 'Approved', 'Rejected']
-                        .map<DropdownMenuItem<String>>((String value) {
-                      return DropdownMenuItem<String>(
-                        value: value,
-                        child: Text(
-                          value,
-                          style: TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.w400,
-                            color: Colors.white,
+                    DropdownButton<String>(
+                      value: selectedStatus,
+                      onChanged: (String? newStatus) {
+                        if (newStatus != null) {
+                          setState(() {
+                            selectedStatus = newStatus;
+                          });
+                        }
+                      },
+                      items: availableStatuses
+                          .map<DropdownMenuItem<String>>((String value) {
+                        return DropdownMenuItem<String>(
+                          value: value,
+                          child: Text(
+                            value,
+                            style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w400,
+                              color: Colors.white,
+                            ),
                           ),
-                        ),
-                      );
-                    }).toList(),
-                    dropdownColor: Colors.grey,
-                    elevation: 10,
-                    style: TextStyle(color: Colors.black),
-                  ),
+                        );
+                      }).toList(),
+                      dropdownColor: Colors.grey,
+                      elevation: 10,
+                      style: TextStyle(color: Colors.black),
+                    ),
 
-                  SizedBox(height: 20),
+                    SizedBox(height: 20),
 
-                  // Tombol untuk memperbarui status
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      ElevatedButton(
-                        onPressed: _isLoading
-                            ? null
-                            : () async {
-                                setState(() {
-                                  _isLoading = true;
-                                });
+                    // Tombol untuk memperbarui status
+                    // Tombol untuk memperbarui status
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        ElevatedButton(
+                          onPressed: _isLoading
+                              ? null
+                              : () async {
+                                  setState(() {
+                                    _isLoading = true;
+                                  });
 
-                                bool success = await updatePengaduanStatus(
-                                    widget.pengaduan.id, selectedStatus);
+                                  bool success = await updatePengaduanStatus(
+                                      widget.pengaduan.id, selectedStatus);
 
-                                if (success) {
-                                  // Cek apakah notifikasi sudah dikirim
-                                  if (!isNotificationSent) {
-                                    await _notificationService.sendNotification(
-                                      widget.pengaduan.userId,
-                                      'Laporan Anda $selectedStatus',
-                                      'Status pengaduan ${widget.pengaduan.jenisKekerasan} Anda telah diperbarui menjadi $selectedStatus.',
-                                    );
+                                  if (success) {
+                                    if (!isNotificationSent) {
+                                      await _notificationService
+                                          .sendNotification(
+                                        widget.pengaduan.userId,
+                                        'Laporan Anda $selectedStatus',
+                                        'Status pengaduan ${widget.pengaduan.jenisKekerasan} Anda telah diperbarui menjadi $selectedStatus.',
+                                      );
 
-                                    setState(() {
-                                      isNotificationSent =
-                                          true; // Tandai sebagai terkirim
-                                    });
+                                      setState(() {
+                                        isNotificationSent = true;
+                                      });
 
+                                      ScaffoldMessenger.of(context)
+                                          .showSnackBar(
+                                        SnackBar(
+                                          content: Text(
+                                              'Status berhasil diperbarui menjadi $selectedStatus'),
+                                          backgroundColor: Colors.green,
+                                          duration: Duration(seconds: 2),
+                                        ),
+                                      );
+                                    }
+                                  } else {
                                     ScaffoldMessenger.of(context).showSnackBar(
-                                      SnackBar(
-                                        content: Text(
-                                            'Status berhasil diperbarui menjadi $selectedStatus'),
-                                        backgroundColor: Colors.green,
+                                      const SnackBar(
+                                        content:
+                                            Text('Gagal memperbarui status'),
+                                        backgroundColor: Colors.red,
                                         duration: Duration(seconds: 2),
                                       ),
                                     );
                                   }
-                                } else {
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    const SnackBar(
-                                      content: Text('Gagal memperbarui status'),
-                                      backgroundColor: Colors.red,
-                                      duration: Duration(seconds: 2),
-                                    ),
-                                  );
-                                }
 
-                                setState(() {
-                                  _isLoading = false;
-                                });
+                                  setState(() {
+                                    _isLoading = false;
+                                  });
 
-                                Navigator.of(context).pop();
-                              },
-                        style: ElevatedButton.styleFrom(
-                          foregroundColor: Colors.white,
-                          backgroundColor: Colors.blueAccent,
-                          padding: EdgeInsets.symmetric(
-                              horizontal: 25, vertical: 12),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(30),
+                                  Navigator.of(context).pop();
+                                },
+                          style: ElevatedButton.styleFrom(
+                            foregroundColor: Colors.white,
+                            backgroundColor: Colors.blueAccent,
+                            padding: EdgeInsets.symmetric(
+                                horizontal: 25, vertical: 12),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(30),
+                            ),
                           ),
+                          child: _isLoading
+                              ? CircularProgressIndicator(color: Colors.white)
+                              : Text('Update Status'),
                         ),
-                        child: _isLoading
-                            ? CircularProgressIndicator(color: Colors.white)
-                            : Text('Update Status'),
-                      ),
-                    ],
-                  ),
+                      ],
+                    ),
+                  ],
                 ],
               ),
             ),

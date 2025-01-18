@@ -2,7 +2,7 @@ class DetailsUser {
   final int id;
   final int nik;
   final String alamat;
-  final String nomorTelepon;
+  final int nomorTelepon;
   final String? imageUrl;
   final String userId;
 
@@ -17,23 +17,12 @@ class DetailsUser {
 
   factory DetailsUser.fromJson(Map<String, dynamic> json) {
     return DetailsUser(
-      id: json['id'] as int,
-      nik: json['nik'] as int,
-      alamat: json['alamat'] as String,
-      nomorTelepon: json['nomor_telepon'].toString(),
-      imageUrl: json['imageUrl'] as String?,
-      userId: json['userId'] as String,
+      id: json['id'],
+      nik: json['nik'],
+      alamat: json['alamat'] ?? '',
+      nomorTelepon: json['nomor_telepon'],
+      imageUrl: json['imageUrl'],
+      userId: json['userId'].toString(),
     );
-  }
-
-  Map<String, dynamic> toJson() {
-    return {
-      'id': id,
-      'nik': nik,
-      'alamat': alamat,
-      'nomor_telepon': nomorTelepon,
-      'imageUrl': imageUrl,
-      'userId': userId,
-    };
   }
 }

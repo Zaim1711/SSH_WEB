@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert'; // Untuk jsonDecode
 
 import 'package:flutter/material.dart';
+import 'package:http/http.dart' as http;
 import 'package:jwt_decoder/jwt_decoder.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:ssh_web/View/AdminPage/AdminChatPage.dart';
@@ -12,6 +13,7 @@ import 'package:ssh_web/View/AdminPage/ManageUserPage.dart';
 import 'package:ssh_web/View/AdminPage/PengaduanPage.dart';
 import 'package:ssh_web/View/AdminPage/RealTimeTrackingSOS.dart';
 import 'package:ssh_web/View/AdminPage/SettingPage.dart';
+import 'package:ssh_web/View/KonsultanPage/ProfilePage.dart';
 import 'package:web_socket_channel/web_socket_channel.dart';
 
 class AdminPanel extends StatefulWidget {
@@ -172,6 +174,65 @@ class _AdminPanelState extends State<AdminPanel> {
     );
   }
 
+  Future<void> _checkUserDetails() async {
+    SharedPreferences prefs = await SharedPreferences.getInstance();
+    String? accessToken = prefs.getString('accesToken');
+
+    if (accessToken != null && !JwtDecoder.isExpired(accessToken)) {
+      try {
+        var payload = JwtDecoder.decode(accessToken);
+        this.userId = payload['sub'].split(',')[0].toString();
+
+        final response = await http.get(
+          Uri.parse('http://localhost:8080/details/user/$userId'),
+          headers: {
+            'Authorization': 'Bearer $accessToken',
+          },
+        );
+        if (response.statusCode == 200) {
+          var userDetails = jsonDecode(response.body);
+          print(response.body);
+
+          if (userDetails.isEmpty) {
+            _showDataNotFoundDialog();
+          }
+        } else if (response.statusCode == 404) {
+          // Tangani 404 Not Found
+          _showDataNotFoundDialog();
+        } else {
+          print(
+              'Error fetching user details: ${response.statusCode} - ${response.body}');
+        }
+      } catch (e) {
+        print('Gagal mendekode token: $e');
+      }
+    } else {
+      print('Token akses tidak tersedia atau telah kedaluwarsa');
+    }
+  }
+
+  void _showDataNotFoundDialog() {
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: const Text('Profile anda belum lengkap'),
+          content: const Text(
+              'Data profile anda belum lengkap. Silakan isi data pengguna terlebih dahulu agar dapat melakukan pelaporan.'),
+          actions: <Widget>[
+            TextButton(
+              onPressed: () {
+                Navigator.of(context).pop(); // Tutup dialog
+                _onItemTapped(6);
+              },
+              child: const Text('OK'),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -275,6 +336,17 @@ class _AdminPanelState extends State<AdminPanel> {
                     _onItemTapped(3);
                   },
                 ),
+                ListTile(
+                  leading: const Icon(
+                    Icons.person,
+                    color: Colors.white,
+                  ),
+                  title: const Text('Profile',
+                      style: TextStyle(color: Colors.white)),
+                  onTap: () {
+                    _onItemTapped(6);
+                  },
+                ),
               ],
             ),
           ),
@@ -300,6 +372,8 @@ class _AdminPanelState extends State<AdminPanel> {
         return ManageUserPage();
       case 5:
         return AdminChatPage();
+      case 6:
+        return ProfilePage();
       default:
         return Homepage(onMenuSelected: _onItemTapped);
     }

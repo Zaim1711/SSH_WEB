@@ -2,6 +2,9 @@ import 'dart:async';
 import 'dart:convert'; // Untuk jsonDecode
 
 import 'package:flutter/material.dart';
+import 'package:http/http.dart' as http;
+import 'package:jwt_decoder/jwt_decoder.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:ssh_web/View/AdminPage/AdminChatPage.dart';
 import 'package:ssh_web/View/AdminPage/LoginPage.dart';
 import 'package:ssh_web/View/AdminPage/RealTimeTrackingSOS.dart';
@@ -27,6 +30,7 @@ class _KonsultanPanelState extends State<KonsultanPanel> {
   @override
   void initState() {
     super.initState();
+    _checkUserDetails();
     channel = WebSocketChannel.connect(Uri.parse('ws://localhost:8080/ws'));
 
     _subscription = channel.stream.listen((message) {
@@ -113,40 +117,66 @@ class _KonsultanPanelState extends State<KonsultanPanel> {
     );
   }
 
-  // Future<void> decodeToken() async {
-  //   SharedPreferences prefs = await SharedPreferences.getInstance();
-  //   String? accessToken = prefs.getString('accesToken');
+  Future<void> _checkUserDetails() async {
+    SharedPreferences prefs = await SharedPreferences.getInstance();
+    String? accessToken = prefs.getString('accesToken');
 
-  //   if (accessToken != null) {
-  //     try {
-  //       payload = JwtDecoder.decode(accessToken);
-  //       String name = payload['sub'].split(',')[2];
-  //       String id = payload['sub'].split(',')[0];
-  //       var roles = payload['roles'];
+    if (accessToken != null && !JwtDecoder.isExpired(accessToken)) {
+      try {
+        var payload = JwtDecoder.decode(accessToken);
+        this.userId = payload['sub'].split(',')[0].toString();
 
-  //       if (roles is String) {
-  //         roles = roles.replaceAll('[', '').replaceAll(']', '').split(',');
-  //       }
+        final response = await http.get(
+          Uri.parse('http://localhost:8080/details/user/$userId'),
+          headers: {
+            'Authorization': 'Bearer $accessToken',
+          },
+        );
+        if (response.statusCode == 200) {
+          var userDetails = jsonDecode(response.body);
+          print(response.body);
 
-  //       if (roles.contains('ROLE_KONSULTAN')) {
-  //         setState(() {
-  //           userName = name;
-  //           userId = id;
-  //         });
-  //       } else {
-  //         _showAccessDeniedMessage(context);
-  //         Future.delayed(const Duration(seconds: 2), () {
-  //           _navigateToLogOut(context);
-  //         });
-  //       }
-  //     } catch (e) {
-  //       print('Error decoding token: $e');
-  //       _navigateToLogOut(context);
-  //     }
-  //   } else {
-  //     _navigateToLogOut(context);
-  //   }
-  // }
+          String nik = userDetails['nik'].toString();
+
+          if (userDetails.isEmpty) {
+            _showDataNotFoundDialog();
+          }
+        } else if (response.statusCode == 404) {
+          // Tangani 404 Not Found
+          _showDataNotFoundDialog();
+        } else {
+          print(
+              'Error fetching user details: ${response.statusCode} - ${response.body}');
+        }
+      } catch (e) {
+        print('Gagal mendekode token: $e');
+      }
+    } else {
+      print('Token akses tidak tersedia atau telah kedaluwarsa');
+    }
+  }
+
+  void _showDataNotFoundDialog() {
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: const Text('Profile anda belum lengkap'),
+          content: const Text(
+              'Data profile anda belum lengkap. Silakan isi data pengguna terlebih dahulu agar dapat melakukan pelaporan.'),
+          actions: <Widget>[
+            TextButton(
+              onPressed: () {
+                Navigator.of(context).pop(); // Tutup dialog
+                _onItemTapped(3);
+              },
+              child: const Text('OK'),
+            ),
+          ],
+        );
+      },
+    );
+  }
 
   void _showAccessDeniedMessage(BuildContext context) {
     showDialog(

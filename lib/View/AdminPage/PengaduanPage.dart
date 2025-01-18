@@ -16,7 +16,7 @@ class _PengaduanPageState extends State<PengaduanPage>
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 3, vsync: this);
+    _tabController = TabController(length: 4, vsync: this);
     _pengaduanList = fetchPengaduan(); // Inisialisasi data pengaduan
   }
 
@@ -53,6 +53,11 @@ class _PengaduanPageState extends State<PengaduanPage>
                   Icons.cancel,
                 ),
                 text: 'Rejected'),
+            Tab(
+                icon: Icon(
+                  Icons.done_all_rounded,
+                ),
+                text: 'Done'),
           ],
         ),
       ),
@@ -68,33 +73,46 @@ class _PengaduanPageState extends State<PengaduanPage>
           } else {
             final pengaduanList = snapshot.data!;
 
-            // Pisahkan data berdasarkan status menggunakan enum
-            final validationData = pengaduanList
-                .where((pengaduan) =>
-                    pengaduan.status.toString().split('.').last == 'Validation')
-                .toList();
+            if (pengaduanList.isNotEmpty) {
+              // Pisahkan data berdasarkan status menggunakan enum
+              final validationData = pengaduanList
+                  .where((pengaduan) =>
+                      pengaduan.status.toString().split('.').last ==
+                      'Validation')
+                  .toList();
 
-            final approvedData = pengaduanList
-                .where((pengaduan) =>
-                    pengaduan.status.toString().split('.').last == 'Approved')
-                .toList();
+              final approvedData = pengaduanList
+                  .where((pengaduan) =>
+                      pengaduan.status.toString().split('.').last == 'Approved')
+                  .toList();
 
-            final rejectedData = pengaduanList
-                .where((pengaduan) =>
-                    pengaduan.status.toString().split('.').last == 'Rejected')
-                .toList();
+              final rejectedData = pengaduanList
+                  .where((pengaduan) =>
+                      pengaduan.status.toString().split('.').last == 'Rejected')
+                  .toList();
 
-            return TabBarView(
-              controller: _tabController,
-              children: [
-                // Tabel untuk Validation
-                _buildDataTable(validationData),
-                // Tabel untuk Approved
-                _buildDataTable(approvedData),
-                // Tabel untuk Rejected
-                _buildDataTable(rejectedData),
-              ],
-            );
+              final solvedData = pengaduanList
+                  .where((pengaduan) =>
+                      pengaduan.status.toString().split('.').last == 'Done')
+                  .toList();
+              print('Data Pengaduan: $pengaduanList');
+
+              return TabBarView(
+                controller: _tabController,
+                children: [
+                  // Tabel untuk Validation
+                  _buildDataTable(validationData),
+                  // Tabel untuk Approved
+                  _buildDataTable(approvedData),
+                  // Tabel untuk Rejected
+                  _buildDataTable(rejectedData),
+
+                  _buildDataTable(solvedData),
+                ],
+              );
+            } else {
+              return const Center(child: Text('Tidak ada data pengaduan.'));
+            }
           }
         },
       ),
@@ -189,7 +207,7 @@ class _PengaduanPageState extends State<PengaduanPage>
     print('Tombol Review ditekan untuk Pengaduan ID: ${pengaduan.id}');
 
     try {
-      // Memanggil fungsi fetchPengaduanWithUser dengan mengirimkan pengaduan.id
+      // Memanggil fungsi fetchPengaduanWithUser  dengan mengirimkan pengaduan.id
       Pengaduan? selectedPengaduan = await fetchPengaduanWithUser(pengaduan.id);
 
       if (selectedPengaduan != null) {

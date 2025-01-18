@@ -1,7 +1,12 @@
+import 'dart:convert';
+import 'dart:typed_data';
+
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
+import 'package:http/http.dart' as http;
 import 'package:jwt_decoder/jwt_decoder.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:ssh_web/Model/DetailsUser.dart';
 import 'package:ssh_web/Service/NotificatioonService.dart';
 import 'package:ssh_web/View/AdminPage/LoginPage.dart';
 
@@ -22,6 +27,8 @@ class _HomepageState extends State<Homepage> {
   String userId = '';
   String userRole = '';
   String userEmail = '';
+  String phoneNumber = '';
+  String imageUrl = '';
   final TextEditingController _searchController = TextEditingController();
   String _searchText = '';
   bool isSearching = false;
@@ -34,8 +41,108 @@ class _HomepageState extends State<Homepage> {
       print('device token');
     });
     decodeToken();
-    print(userEmail);
-    print(userRole);
+    fetchUserDetails();
+  }
+
+  Future<DetailsUser?> fetchUserDetails() async {
+    SharedPreferences prefs = await SharedPreferences.getInstance();
+    String? token = prefs.getString('accesToken');
+
+    try {
+      final response = await http.get(
+        Uri.parse('http://localhost:8080/details/user/$userId'),
+        headers: {
+          'Authorization': 'Bearer $token',
+        },
+      );
+
+      print('Response status: ${response.statusCode}');
+      print('Response body: ${response.body}');
+
+      if (response.statusCode == 200) {
+        final jsonResponse = json.decode(response.body);
+        if (jsonResponse != null) {
+          setState(() {});
+
+          DetailsUser details = DetailsUser.fromJson(jsonResponse);
+
+          // Update the rest of the controllers
+          phoneNumber = details.nomorTelepon.toString();
+          imageUrl = details.imageUrl ?? '';
+          print('Response status: ${response.statusCode}');
+
+          return details;
+        }
+      } else if (response.statusCode == 404) {
+        return null;
+      } else {
+        throw Exception('Failed to load user details: ${response.statusCode}');
+      }
+    } catch (e) {
+      print('Error fetching user details: $e');
+      rethrow;
+    }
+    return null;
+  }
+
+  // Image fetching function
+  Future<Uint8List?> fetchImage(String userImageUrl) async {
+    print('imageName : $userImageUrl');
+    SharedPreferences prefs = await SharedPreferences.getInstance();
+    String? accessToken = prefs.getString('accesToken');
+    if (accessToken == null) {
+      print('Access token tidak ditemukan');
+      return null;
+    }
+
+    final imageUrl = 'http://localhost:8080/details/image/$userImageUrl';
+    try {
+      final response = await http.get(
+        Uri.parse(imageUrl),
+        headers: {
+          'Authorization': 'Bearer $accessToken',
+        },
+      );
+
+      if (response.statusCode == 200) {
+        return response.bodyBytes;
+      } else {
+        print('Gagal mengambil gambar: ${response.statusCode}');
+        return null;
+      }
+    } catch (e) {
+      print('Terjadi kesalahan saat mengambil gambar: $e');
+      return null;
+    }
+  }
+
+  Widget _buildProfileAppbar(double radius) {
+    return FutureBuilder<Uint8List?>(
+      future: fetchImage(imageUrl),
+      builder: (BuildContext context, AsyncSnapshot<Uint8List?> snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return CircleAvatar(
+            radius: radius,
+            child: CircularProgressIndicator(), // Show progress indicator
+          );
+        } else if (snapshot.hasError) {
+          return CircleAvatar(
+            radius: radius,
+            child: Icon(Icons.error, size: radius), // Show error icon
+          );
+        } else {
+          final imageBytes = snapshot.data;
+          return CircleAvatar(
+            radius: radius,
+            backgroundImage:
+                imageBytes != null ? MemoryImage(imageBytes) : null,
+            child: imageBytes == null
+                ? Icon(Icons.person, size: radius) // Default icon if no image
+                : null,
+          );
+        }
+      },
+    );
   }
 
   Future<void> decodeToken() async {
@@ -67,6 +174,24 @@ class _HomepageState extends State<Homepage> {
         print('Error decoding token: $e');
       }
     } else {}
+  }
+
+  Future<List<dynamic>> _getKonsultasiRiwayat() async {
+    SharedPreferences prefs = await SharedPreferences.getInstance();
+    String? accessToken = prefs.getString('accesToken');
+    final response = await http.get(
+      Uri.parse("http://localhost:8080/Konsultasi"),
+      headers: {
+        'Authorization': 'Bearer $accessToken',
+        'Content-Type': 'application/json',
+      },
+    );
+
+    if (response.statusCode == 200) {
+      return jsonDecode(response.body);
+    } else {
+      return [];
+    }
   }
 
   Future<void> _deleteFcmToken() async {
@@ -128,11 +253,7 @@ class _HomepageState extends State<Homepage> {
               // Avatar circular di kanan
               Row(
                 children: [
-                  CircleAvatar(
-                    radius: 20, // Menentukan ukuran avatar
-                    backgroundColor: Colors.blueAccent,
-                    child: Icon(Icons.person, color: Colors.white),
-                  ),
+                  _buildProfileAppbar(20),
                   const SizedBox(width: 10), // Jarak antara avatar dan teks
                   Text('$userName', style: TextStyle(color: Colors.black)),
 
@@ -213,9 +334,9 @@ class _HomepageState extends State<Homepage> {
                         padding: const EdgeInsets.all(16.0),
                         child: Row(
                           children: [
-                            CircleAvatar(
-                              radius: isSmallScreen ? 50 : 100,
-                            ),
+                            isSmallScreen
+                                ? _buildProfileAppbar(50)
+                                : _buildProfileAppbar(100),
                             SizedBox(
                               width: 10,
                             ),
@@ -247,7 +368,7 @@ class _HomepageState extends State<Homepage> {
                                               ),
                                               _buildInfoColumn(
                                                   'Phone Number',
-                                                  '(+62)85648499655',
+                                                  '(+62)$phoneNumber',
                                                   isSmallScreen),
                                               SizedBox(
                                                 width: 20,
@@ -287,6 +408,43 @@ class _HomepageState extends State<Homepage> {
                   ),
                 ),
               ),
+              // Card(
+              //   child: Row(children: [
+              //     FutureBuilder(
+              //       future: _getKonsultasiRiwayat(),
+              //       builder: (context, snapshot) {
+              //         if (snapshot.hasData) {
+              //           return ListView.builder(
+              //             shrinkWrap: true,
+              //             itemCount: snapshot.data?.length,
+              //             itemBuilder: (context, index) {
+              //               return Card(
+              //                 child: Container(
+              //                   padding: const EdgeInsets.all(16.0),
+              //                   child: Column(
+              //                     crossAxisAlignment: CrossAxisAlignment.start,
+              //                     children: [
+              //                       Text(
+              //                           'Pesan Konsultasi: ${snapshot.data![index]['message']}'),
+              //                       Text(
+              //                           'Status: ${snapshot.data![index]['status']}'),
+              //                       Text(
+              //                           'Tanggal: ${snapshot.data![index]['createdAt']}'),
+              //                     ],
+              //                   ),
+              //                 ),
+              //               );
+              //             },
+              //           );
+              //         } else {
+              //           return Center(
+              //             child: CircularProgressIndicator(),
+              //           );
+              //         }
+              //       },
+              //     ),
+              //   ]),
+              // )
             ],
           ),
         ),

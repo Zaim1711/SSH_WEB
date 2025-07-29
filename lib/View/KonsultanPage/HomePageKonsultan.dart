@@ -3,10 +3,15 @@ import 'dart:typed_data';
 
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
+import 'package:fluttertoast/fluttertoast.dart';
 import 'package:http/http.dart' as http;
 import 'package:jwt_decoder/jwt_decoder.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:ssh_web/Model/DetailsUser.dart';
+import 'package:ssh_web/Model/UserChat.dart';
+import 'package:ssh_web/Service/NotificatioonService.dart';
+import 'package:ssh_web/Service/UserService.dart';
+import 'package:ssh_web/View/AdminPage/ChatScreen.dart';
 import 'package:ssh_web/View/AdminPage/LoginPage.dart';
 
 class HomePageKonsultan extends StatefulWidget {
@@ -25,6 +30,7 @@ class _HomePageKonsultanState extends State<HomePageKonsultan> {
   String phoneNumber = '';
   String imageUrl = '';
   final TextEditingController _searchController = TextEditingController();
+  final NotificationService _notificationService = NotificationService();
   String _searchText = '';
 
   @override
@@ -195,6 +201,107 @@ class _HomePageKonsultanState extends State<HomePageKonsultan> {
     );
   }
 
+  Future<void> _showChatConfirmation(
+      BuildContext context, Map<String, dynamic> konsultasi) async {
+    return showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: const Text('Konfirmasi Chat'),
+          content:
+              const Text('Apakah Anda yakin ingin memulai chat konsultasi?'),
+          actions: [
+            TextButton(
+              onPressed: () {
+                Navigator.of(context).pop(); // Close dialog
+              },
+              child: const Text('Batal'),
+            ),
+            ElevatedButton(
+              onPressed: () async {
+                Navigator.of(context).pop(); // Close dialog
+
+                User user =
+                    await UserService().fetchUser(konsultasi['senderId']);
+
+                await _updateStatus(konsultasi['id']
+                    .toString()); // Panggil fungsi _updateStatus
+
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => Chatscreen(
+                      user: user,
+                      senderId: userId,
+                    ),
+                  ),
+                );
+              },
+              child: const Text('Ya, Mulai Chat'),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  Future<void> _updateStatus(String id) async {
+    try {
+      SharedPreferences prefs = await SharedPreferences.getInstance();
+      String? accessToken = prefs.getString('accesToken');
+
+      if (accessToken == null) {
+        print('Access token tidak ditemukan');
+        print(id);
+        return;
+      }
+
+      final url = Uri.parse('http://localhost:8080/Konsultasi/update/$id');
+      final response = await http.put(
+        url,
+        headers: {
+          'Authorization': 'Bearer $accessToken',
+          'Content-Type': 'application/json',
+        },
+        body: jsonEncode([
+          {'status_konsul': 'Accepted'}
+        ]),
+      );
+
+      if (response.statusCode == 200) {
+        print('Status berhasil diupdate');
+      } else {
+        print('Gagal mengupdate status');
+      }
+    } catch (e) {
+      print('Error: $e');
+    }
+  }
+
+  void navigateToChatScreen(BuildContext context, User user, String userId) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => Chatscreen(
+          user: user,
+          senderId: userId,
+        ),
+      ),
+    );
+  }
+
+  void showNotification(String message) {
+    Fluttertoast.showToast(
+      msg: message,
+      toastLength: Toast.LENGTH_SHORT,
+      gravity: ToastGravity.BOTTOM,
+      timeInSecForIosWeb: 1,
+      backgroundColor: Colors.red,
+      textColor: Colors.white,
+      fontSize: 16.0,
+    );
+  }
+
   Future<void> _deleteFcmToken() async {
     SharedPreferences prefs = await SharedPreferences.getInstance();
     String? accessToken = prefs.getString('accesToken');
@@ -213,9 +320,69 @@ class _HomePageKonsultanState extends State<HomePageKonsultan> {
     }
   }
 
+  Future<List<dynamic>> _getKonsultasiRiwayat() async {
+    SharedPreferences prefs = await SharedPreferences.getInstance();
+    String? accessToken = prefs.getString('accesToken');
+    final response = await http.get(
+      Uri.parse("http://localhost:8080/Konsultasi"),
+      headers: {
+        'Authorization': 'Bearer $accessToken',
+        'Content-Type': 'application/json',
+      },
+    );
+
+    if (response.statusCode == 200) {
+      return jsonDecode(response.body);
+    } else {
+      return [];
+    }
+  }
+
   Future<void> _logout() async {
     SharedPreferences prefs = await SharedPreferences.getInstance();
     await prefs.remove('accesToken');
+  }
+
+  Future<void> _showLogoutConfirmationDialog(BuildContext context) async {
+    await showDialog(
+        context: context,
+        builder: (BuildContext context) {
+          return AlertDialog(
+            title: Text(
+              'Konfirmasi Logout',
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+            ),
+            content: Text(
+              'Apakah Anda yakin ingin keluar?',
+              style: TextStyle(fontSize: 16),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () {
+                  Navigator.of(context).pop();
+                },
+                child: Text(
+                  'Tidak',
+                  style: TextStyle(fontSize: 16, color: Colors.blue),
+                ),
+              ),
+              ElevatedButton(
+                  onPressed: () async {
+                    await _deleteFcmToken();
+                    await _logout();
+                    _navigateToLogOut(context);
+                  },
+                  style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.red,
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(10))),
+                  child: Text(
+                    'Ya',
+                    style: TextStyle(fontSize: 16, color: Colors.white),
+                  ))
+            ],
+          );
+        });
   }
 
   @override
@@ -252,38 +419,6 @@ class _HomePageKonsultanState extends State<HomePageKonsultan> {
                 ),
               ),
               // Avatar circular di kanan
-              Row(
-                children: [
-                  _buildProfileAppbar(20.0),
-                  const SizedBox(width: 10), // Jarak antara avatar dan teks
-                  Text('$userName', style: TextStyle(color: Colors.black)),
-
-                  // Ikon dropdown yang menampilkan menu saat diklik
-                  PopupMenuButton<String>(
-                    icon: Icon(Icons.arrow_drop_down, color: Colors.black),
-                    onSelected: (String value) async {
-                      if (value == 'Logout') {
-                        // Aksi ketika memilih Logout
-                        await _deleteFcmToken();
-                        await _logout();
-                        _navigateToLogOut(context);
-                        print('Logout selected');
-                      } else if (value == 'Profile') {
-                        // Aksi ketika memilih Profile
-                        print('Profile selected');
-                      }
-                    },
-                    itemBuilder: (BuildContext context) {
-                      return {'Profile', 'Logout'}.map((String choice) {
-                        return PopupMenuItem<String>(
-                          value: choice,
-                          child: Text(choice),
-                        );
-                      }).toList();
-                    },
-                  ),
-                ],
-              ),
             ],
           ),
         ),
@@ -421,6 +556,111 @@ class _HomePageKonsultanState extends State<HomePageKonsultan> {
                   ],
                 ),
               ),
+              Card(
+                child: Expanded(
+                  child: FutureBuilder(
+                    future: _getKonsultasiRiwayat(),
+                    builder: (context, snapshot) {
+                      if (snapshot.hasData) {
+                        // Filter data, hanya ambil yang status_konsul-nya 'waiting'
+                        final filteredData = snapshot.data!
+                            .where(
+                                (item) => item['status_konsul'] == 'Waitting')
+                            .toList();
+
+                        // Cek jika filteredData kosong
+                        if (filteredData.isEmpty) {
+                          return Center(
+                            child: Text(
+                              "Belum ada konsultasi",
+                              style:
+                                  TextStyle(fontSize: 16, color: Colors.grey),
+                            ),
+                          );
+                        }
+
+                        return ListView.builder(
+                          shrinkWrap: true,
+                          itemCount: filteredData.length,
+                          itemBuilder: (context, index) {
+                            return FutureBuilder(
+                              future: UserService()
+                                  .fetchUser(filteredData[index]['senderId']),
+                              builder: (context, userSnapshot) {
+                                if (userSnapshot.hasData) {
+                                  User user = userSnapshot.data!;
+                                  return Card(
+                                    elevation: 5,
+                                    margin: const EdgeInsets.all(10),
+                                    child: Container(
+                                      padding: const EdgeInsets.all(16.0),
+                                      child: Column(
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
+                                        children: [
+                                          Text(
+                                            'Nama : ${user.username}',
+                                            style: TextStyle(
+                                                fontSize: 14,
+                                                color: Colors.grey),
+                                          ),
+                                          Text(
+                                            'Email : ${user.email}',
+                                            style: TextStyle(
+                                                fontSize: 14,
+                                                color: Colors.grey),
+                                          ),
+                                          Text(
+                                            'Pesan Konsultasi: ${filteredData[index]['message']}',
+                                            style: TextStyle(
+                                                fontSize: 16,
+                                                fontWeight: FontWeight.bold),
+                                          ),
+                                          Text(
+                                            'Status: ${filteredData[index]['status_konsul']}',
+                                            style: TextStyle(
+                                                fontSize: 14,
+                                                color: Colors.grey),
+                                          ),
+                                          SizedBox(height: 10),
+                                          ElevatedButton(
+                                            onPressed: () =>
+                                                _showChatConfirmation(
+                                              context,
+                                              filteredData[index],
+                                            ),
+                                            child: Text('Mulai Chat'),
+                                            style: ElevatedButton.styleFrom(
+                                              foregroundColor: Colors.white,
+                                              backgroundColor: Colors.blue,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  );
+                                } else if (userSnapshot.hasError) {
+                                  return Text('Error: ${userSnapshot.error}');
+                                } else {
+                                  return const Center(
+                                    child: CircularProgressIndicator(),
+                                  );
+                                }
+                              },
+                            );
+                          },
+                        );
+                      } else if (snapshot.hasError) {
+                        return Text('Error: ${snapshot.error}');
+                      } else {
+                        return const Center(
+                          child: CircularProgressIndicator(),
+                        );
+                      }
+                    },
+                  ),
+                ),
+              )
             ],
           ),
         ),

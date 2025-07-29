@@ -10,11 +10,21 @@ import 'package:jwt_decoder/jwt_decoder.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:ssh_web/Model/ChatRoom.dart';
 import 'package:ssh_web/Model/UserChat.dart';
+import 'package:ssh_web/Service/ChatRoomService.dart';
 import 'package:ssh_web/Service/NotificatioonService.dart';
 import 'package:ssh_web/Service/UserService.dart';
-import 'package:ssh_web/View/AdminPage/ChatRoomService.dart';
 
 class AdminChatPage extends StatefulWidget {
+  final User? initialUser;
+  final ChatRoom? initialChatRoom;
+  final String? initialMessage;
+
+  const AdminChatPage({
+    this.initialUser,
+    this.initialChatRoom,
+    this.initialMessage,
+    Key? key,
+  }) : super(key: key);
   @override
   _AdminChatPageState createState() => _AdminChatPageState();
 }
@@ -42,6 +52,23 @@ class _AdminChatPageState extends State<AdminChatPage> {
     futureChatRooms = Future.value([]);
     _focusNode.requestFocus();
     _scrollToBottom();
+    // Inisialisasi chat jika ada data awal
+    if (widget.initialUser != null && widget.initialChatRoom != null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        setState(() {
+          selectedUser = widget.initialUser;
+          selectedRoom = widget.initialChatRoom;
+          selectUser(widget.initialUser!, widget.initialChatRoom!);
+
+          // Jika ada pesan awal, kirim pesan tersebut
+          if (widget.initialMessage != null &&
+              widget.initialMessage!.isNotEmpty) {
+            sendMessage(widget.initialMessage!);
+          }
+        });
+      });
+    }
+
     decodeToken();
   }
 

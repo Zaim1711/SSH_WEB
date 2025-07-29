@@ -7,8 +7,10 @@ import 'package:http/http.dart' as http;
 import 'package:jwt_decoder/jwt_decoder.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:ssh_web/Model/DetailsUser.dart';
+import 'package:ssh_web/Model/Pengaduan.dart';
 import 'package:ssh_web/Service/NotificatioonService.dart';
 import 'package:ssh_web/View/AdminPage/LoginPage.dart';
+import 'package:ssh_web/View/AdminPage/ReviewPage.dart';
 
 class Homepage extends StatefulWidget {
   final Function(int) onMenuSelected;
@@ -32,6 +34,8 @@ class _HomepageState extends State<Homepage> {
   final TextEditingController _searchController = TextEditingController();
   String _searchText = '';
   bool isSearching = false;
+  late Future<List<Pengaduan>> _pengaduanList;
+
   @override
   void initState() {
     super.initState();
@@ -42,6 +46,7 @@ class _HomepageState extends State<Homepage> {
     });
     decodeToken();
     fetchUserDetails();
+    _pengaduanList = fetchPengaduan();
   }
 
   Future<DetailsUser?> fetchUserDetails() async {
@@ -176,22 +181,46 @@ class _HomepageState extends State<Homepage> {
     } else {}
   }
 
-  Future<List<dynamic>> _getKonsultasiRiwayat() async {
-    SharedPreferences prefs = await SharedPreferences.getInstance();
-    String? accessToken = prefs.getString('accesToken');
-    final response = await http.get(
-      Uri.parse("http://localhost:8080/Konsultasi"),
-      headers: {
-        'Authorization': 'Bearer $accessToken',
-        'Content-Type': 'application/json',
-      },
-    );
-
-    if (response.statusCode == 200) {
-      return jsonDecode(response.body);
-    } else {
-      return [];
-    }
+  Future<void> _showLogoutConfirmationDialog(BuildContext context) async {
+    await showDialog(
+        context: context,
+        builder: (BuildContext context) {
+          return AlertDialog(
+            title: Text(
+              'Konfirmasi Logout',
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+            ),
+            content: Text(
+              'Apakah Anda yakin ingin keluar?',
+              style: TextStyle(fontSize: 16),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () {
+                  Navigator.of(context).pop();
+                },
+                child: Text(
+                  'Tidak',
+                  style: TextStyle(fontSize: 16, color: Colors.blue),
+                ),
+              ),
+              ElevatedButton(
+                  onPressed: () async {
+                    await _deleteFcmToken();
+                    await _logout();
+                    _navigateToLogOut(context);
+                  },
+                  style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.red,
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(10))),
+                  child: Text(
+                    'Ya',
+                    style: TextStyle(fontSize: 16, color: Colors.white),
+                  ))
+            ],
+          );
+        });
   }
 
   Future<void> _deleteFcmToken() async {
@@ -249,39 +278,6 @@ class _HomepageState extends State<Homepage> {
                     });
                   },
                 ),
-              ),
-              // Avatar circular di kanan
-              Row(
-                children: [
-                  _buildProfileAppbar(20),
-                  const SizedBox(width: 10), // Jarak antara avatar dan teks
-                  Text('$userName', style: TextStyle(color: Colors.black)),
-
-                  // Ikon dropdown yang menampilkan menu saat diklik
-                  PopupMenuButton<String>(
-                    icon: Icon(Icons.arrow_drop_down, color: Colors.black),
-                    onSelected: (String value) async {
-                      if (value == 'Logout') {
-                        // Aksi ketika memilih Logout
-                        await _deleteFcmToken();
-                        await _logout();
-                        _navigateToLogOut(context);
-                        print('Logout selected');
-                      } else if (value == 'Profile') {
-                        // Aksi ketika memilih Profile
-                        print('Profile selected');
-                      }
-                    },
-                    itemBuilder: (BuildContext context) {
-                      return {'Profile', 'Logout'}.map((String choice) {
-                        return PopupMenuItem<String>(
-                          value: choice,
-                          child: Text(choice),
-                        );
-                      }).toList();
-                    },
-                  ),
-                ],
               ),
             ],
           ),
@@ -408,48 +404,227 @@ class _HomepageState extends State<Homepage> {
                   ),
                 ),
               ),
-              // Card(
-              //   child: Row(children: [
-              //     FutureBuilder(
-              //       future: _getKonsultasiRiwayat(),
-              //       builder: (context, snapshot) {
-              //         if (snapshot.hasData) {
-              //           return ListView.builder(
-              //             shrinkWrap: true,
-              //             itemCount: snapshot.data?.length,
-              //             itemBuilder: (context, index) {
-              //               return Card(
-              //                 child: Container(
-              //                   padding: const EdgeInsets.all(16.0),
-              //                   child: Column(
-              //                     crossAxisAlignment: CrossAxisAlignment.start,
-              //                     children: [
-              //                       Text(
-              //                           'Pesan Konsultasi: ${snapshot.data![index]['message']}'),
-              //                       Text(
-              //                           'Status: ${snapshot.data![index]['status']}'),
-              //                       Text(
-              //                           'Tanggal: ${snapshot.data![index]['createdAt']}'),
-              //                     ],
-              //                   ),
-              //                 ),
-              //               );
-              //             },
-              //           );
-              //         } else {
-              //           return Center(
-              //             child: CircularProgressIndicator(),
-              //           );
-              //         }
-              //       },
-              //     ),
-              //   ]),
-              // )
+              Card(
+                elevation: 8,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(16),
+                ),
+                child: Padding(
+                  padding: const EdgeInsets.all(16.0),
+                  child: Column(
+                    children: [
+                      Text(
+                        'Data Pengaduan belum Divalidasi',
+                        style: TextStyle(
+                          color: Colors.black,
+                          fontSize: 16,
+                        ),
+                      ),
+                      FutureBuilder<List<Pengaduan>>(
+                        future: _pengaduanList,
+                        builder: (context, snapshot) {
+                          if (snapshot.connectionState ==
+                              ConnectionState.waiting) {
+                            return Center(child: CircularProgressIndicator());
+                          } else if (snapshot.hasError) {
+                            return Center(
+                                child: Text('Error: ${snapshot.error}'));
+                          } else if (!snapshot.hasData ||
+                              snapshot.data!.isEmpty) {
+                            return Center(
+                                child: Text('Tidak ada data pengaduan.'));
+                          } else {
+                            final pengaduanList = snapshot.data!;
+
+                            final validationData = pengaduanList
+                                .where((pengaduan) =>
+                                    pengaduan.status
+                                        .toString()
+                                        .split('.')
+                                        .last ==
+                                    'Validation')
+                                .toList();
+
+                            if (validationData.isNotEmpty) {
+                              return isSmallScreen
+                                  ? Container(
+                                      padding: const EdgeInsets.all(16.0),
+                                      child: _buildDataTable(validationData),
+                                    )
+                                  : Container(
+                                      width: double.infinity,
+                                      padding: const EdgeInsets.all(16.0),
+                                      child: _buildDataTable(validationData),
+                                    );
+                            } else {
+                              return Center(
+                                  child: Text(
+                                      'Tidak ada data pengaduan yang belum divalidasi.'));
+                            }
+                          }
+                        },
+                      )
+                    ],
+                  ),
+                ),
+              )
             ],
           ),
         ),
       ),
     );
+  }
+
+  Widget _buildDataTable(List<Pengaduan> pengaduanData) {
+    return SingleChildScrollView(
+      child: Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: Card(
+          elevation: 8,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
+          child: Padding(
+            padding: const EdgeInsets.all(16.0),
+            child: DataTable(
+              columns: const [
+                DataColumn(label: Text('ID')),
+                DataColumn(label: Text('Nama')),
+                DataColumn(label: Text('Jenis Kekerasan')),
+                DataColumn(label: Text('Status')),
+                DataColumn(label: Text('Aksi')),
+              ],
+              rows: pengaduanData.map((pengaduan) {
+                return DataRow(cells: [
+                  DataCell(Text(pengaduan.id.toString())),
+                  DataCell(Text(pengaduan.name)),
+                  DataCell(Text(pengaduan.jenisKekerasan)),
+                  DataCell(Text(pengaduan.status.toString().split('.').last)),
+                  DataCell(
+                    ElevatedButton(
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Color(0xFF0D187E),
+                        foregroundColor: Colors.white,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 20,
+                          vertical: 12,
+                        ),
+                        elevation: 5,
+                        shadowColor: Colors.tealAccent.withOpacity(0.5),
+                        side: const BorderSide(
+                          color: Color(0xFF0D187E),
+                          width: 1.5,
+                        ),
+                      ),
+                      onPressed: () {
+                        _onReviewButtonPressed(pengaduan);
+                      },
+                      child: const Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(Icons.rate_review, size: 18),
+                          SizedBox(width: 8),
+                          Text('Review'),
+                        ],
+                      ),
+                    ),
+                  ),
+                ]);
+              }).toList(),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _onReviewButtonPressed(Pengaduan pengaduan) async {
+    print('Tombol Review ditekan untuk Pengaduan ID: ${pengaduan.id}');
+
+    try {
+      // Memanggil fungsi fetchPengaduanWithUser   dengan mengirimkan pengaduan.id
+      Pengaduan? selectedPengaduan = await fetchPengaduanWithUser(pengaduan.id);
+
+      if (selectedPengaduan != null) {
+        print('Pengaduan ditemukan: ${selectedPengaduan.name}');
+
+        // Tampilkan dialog sebagai pop-up
+        showDialog(
+          context: context,
+          builder: (BuildContext context) {
+            return Dialog(
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+              insetPadding: const EdgeInsets.symmetric(horizontal: 40),
+              child: ConstrainedBox(
+                constraints: BoxConstraints(
+                  maxWidth: MediaQuery.of(context).size.width *
+                      0.5, // Maksimal lebar 80% dari lebar layar
+                ),
+                child: Padding(
+                  padding: const EdgeInsets.all(20.0),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        'Review Pengaduan',
+                        style: TextStyle(
+                          fontSize: 20,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.blue,
+                        ),
+                      ),
+                      const SizedBox(height: 15),
+
+                      // Menampilkan konten ReviewPage yang membutuhkan objek Pengaduan
+                      ReviewPage(pengaduan: selectedPengaduan),
+
+                      const SizedBox(height: 20),
+
+                      // Tombol untuk menutup dialog
+                      Align(
+                        alignment: Alignment.centerRight,
+                        child: ElevatedButton(
+                          onPressed: () {
+                            Navigator.of(context).pop(); // Menutup dialog
+                          },
+                          child: const Text('Tutup'),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.white,
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 20,
+                              vertical: 12,
+                            ),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            );
+          },
+        ).then((_) {
+          // Menjalankan setState setelah dialog ditutup
+          setState(() {
+            _pengaduanList =
+                fetchPengaduan(); // Memanggil ulang fetchPengaduan untuk memuat data terbaru
+          });
+        });
+      } else {
+        print('Pengaduan tidak ditemukan!');
+      }
+    } catch (e) {
+      print('Error: $e');
+    }
   }
 
   Widget _buildInfoColumn(String label, String value, bool isSmallScreen) {
@@ -481,77 +656,77 @@ class _HomepageState extends State<Homepage> {
       ),
     );
   }
-}
 
-Widget _buildStatCard(String title, String value, IconData icon) {
-  return Card(
-    elevation: 4,
-    margin: const EdgeInsets.all(8.0),
-    child: Padding(
-      padding: const EdgeInsets.all(16.0),
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(icon, size: 40, color: Colors.blueAccent),
-          const SizedBox(height: 10),
-          Text(
-            title,
-            style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-          ),
-          const SizedBox(height: 5),
-          Text(
-            value,
-            style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
-          ),
-        ],
-      ),
-    ),
-  );
-}
-
-Widget _buildSectionTitle(String title, Color color) {
-  return Text(
-    title,
-    style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: color),
-  );
-}
-
-Widget _buildActionCard(String title, IconData icon, VoidCallback onPressed) {
-  return GestureDetector(
-    onTap: onPressed,
-    child: Card(
-      elevation: 6,
+  Widget _buildStatCard(String title, String value, IconData icon) {
+    return Card(
+      elevation: 4,
       margin: const EdgeInsets.all(8.0),
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(12),
-      ),
       child: Padding(
         padding: const EdgeInsets.all(16.0),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Row(
-              children: [
-                Icon(icon, size: 30, color: Colors.blueAccent),
-                const SizedBox(width: 10),
-                Text(
-                  title,
-                  style: const TextStyle(
-                      fontSize: 18, fontWeight: FontWeight.bold),
-                ),
-              ],
+            Icon(icon, size: 40, color: Colors.blueAccent),
+            const SizedBox(height: 10),
+            Text(
+              title,
+              style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
             ),
-            const Icon(Icons.arrow_forward, color: Colors.blueAccent),
+            const SizedBox(height: 5),
+            Text(
+              value,
+              style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+            ),
           ],
         ),
       ),
-    ),
-  );
-}
+    );
+  }
 
-void _navigateToLogOut(BuildContext context) {
-  Navigator.pushReplacement(
-    context,
-    MaterialPageRoute(builder: (context) => LoginPage()),
-  );
+  Widget _buildSectionTitle(String title, Color color) {
+    return Text(
+      title,
+      style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: color),
+    );
+  }
+
+  Widget _buildActionCard(String title, IconData icon, VoidCallback onPressed) {
+    return GestureDetector(
+      onTap: onPressed,
+      child: Card(
+        elevation: 6,
+        margin: const EdgeInsets.all(8.0),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: Padding(
+          padding: const EdgeInsets.all(16.0),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Row(
+                children: [
+                  Icon(icon, size: 30, color: Colors.blueAccent),
+                  const SizedBox(width: 10),
+                  Text(
+                    title,
+                    style: const TextStyle(
+                        fontSize: 18, fontWeight: FontWeight.bold),
+                  ),
+                ],
+              ),
+              const Icon(Icons.arrow_forward, color: Colors.blueAccent),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _navigateToLogOut(BuildContext context) {
+    Navigator.pushReplacement(
+      context,
+      MaterialPageRoute(builder: (context) => LoginPage()),
+    );
+  }
 }
